@@ -1,204 +1,160 @@
-"""Gmail SMTP를 통해 분석 보고서를 HTML 이메일로 발송합니다."""
+"""Gmail SMTP를 통해 분석 보고서를 HTML 이메일로 발송합니다 (PPT 첨부 포함)."""
 import logging
 import os
 import smtplib
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 _SECTION_COLORS = {
-    "핵심 요약": "#1a73e8",
-    "SoC": "#0f9d58",
-    "HBM": "#e37400",
-    "SDV": "#a142f4",
-    "휴머노이드": "#e52592",
-    "공급망": "#1967d2",
-    "경쟁": "#188038",
-    "투자": "#c5221f",
-    "규제": "#e37400",
-    "전략": "#1a73e8",
+    "핵심 요약":          "#00B4D8",
+    "기술적 의미":        "#0096C7",
+    "AI Agent":           "#0077B6",
+    "비즈니스 영향":      "#48CAE4",
+    "Ecosystem":          "#ADE8F4",
+    "향후 전망":          "#90E0EF",
+    "메모리":             "#023E8A",
+    "스토리지 Workload":  "#0077B6",
+    "지역별":             "#00B4D8",
+    "Why Now":            "#48CAE4",
 }
 
 
-def _section_color(title: str) -> str:
-    for key, color in _SECTION_COLORS.items():
-        if key in title:
-            return color
-    return "#5f6368"
+def _color(title: str) -> str:
+    for k, v in _SECTION_COLORS.items():
+        if k in title:
+            return v
+    return "#0096C7"
 
 
-def _markdown_to_html(text: str) -> str:
-    """간단한 마크다운 → HTML 변환 (bullet, bold, 줄바꿈)."""
+def _md_to_html(text: str) -> str:
     import re
-
-    lines = text.split("\n")
-    html_lines = []
-    in_list = False
-
+    lines, html, in_ul = text.split("\n"), [], False
     for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("- ") or stripped.startswith("• "):
-            if not in_list:
-                html_lines.append("<ul>")
-                in_list = True
-            content = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", stripped[2:])
-            html_lines.append(f"  <li>{content}</li>")
+        s = line.strip()
+        if s.startswith("- ") or s.startswith("• "):
+            if not in_ul:
+                html.append("<ul style='margin:4px 0; padding-left:18px;'>")
+                in_ul = True
+            c = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s[2:])
+            c = re.sub(r"\[(.+?)\]\((https?://[^\)]+)\)", r'<a href="\2" style="color:#00B4D8">\1</a>', c)
+            html.append(f"<li style='margin:3px 0'>{c}</li>")
         else:
-            if in_list:
-                html_lines.append("</ul>")
-                in_list = False
-            content = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", stripped)
-            if content:
-                html_lines.append(f"<p>{content}</p>")
+            if in_ul:
+                html.append("</ul>")
+                in_ul = False
+            c = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
+            c = re.sub(r"\[(.+?)\]\((https?://[^\)]+)\)", r'<a href="\2" style="color:#00B4D8">\1</a>', c)
+            if c:
+                html.append(f"<p style='margin:5px 0'>{c}</p>")
+    if in_ul:
+        html.append("</ul>")
+    return "\n".join(html)
 
-    if in_list:
-        html_lines.append("</ul>")
 
-    return "\n".join(html_lines)
-
-
-def _build_daily_html(analysis: dict) -> str:
-    date_str = analysis.get("date", "")
-    article_count = analysis.get("article_count", 0)
-    keywords = ", ".join(analysis.get("keywords_found", []))
+def _build_html(analysis: dict, report_type: str = "Daily") -> str:
+    date_str   = analysis.get("date", "")
+    art_count  = analysis.get("article_count", 0)
+    keywords   = ", ".join(analysis.get("keywords_found", []))
+    provider   = analysis.get("provider", "-")
     notion_url = analysis.get("notion_url", "")
-    sections: dict = analysis.get("sections", {})
+    sections   = analysis.get("sections", {})
+    week_label = analysis.get("week_label", "")
+
+    subtitle = week_label if report_type == "Weekly" else date_str
+    header_gradient = (
+        "linear-gradient(135deg,#a142f4,#0077B6)"
+        if report_type == "Weekly"
+        else "linear-gradient(135deg,#023E8A,#00B4D8)"
+    )
 
     sections_html = ""
     for title, content in sections.items():
-        color = _section_color(title)
-        body_html = _markdown_to_html(content)
+        col = _color(title)
         sections_html += f"""
-        <div style="margin-bottom:28px; border-left:4px solid {color}; padding-left:16px;">
-          <h2 style="color:{color}; font-size:15px; margin:0 0 10px 0; font-family:sans-serif;">{title}</h2>
-          <div style="color:#3c4043; font-size:14px; line-height:1.7; font-family:sans-serif;">
-            {body_html}
+        <div style="margin-bottom:24px;border-left:4px solid {col};padding-left:14px;">
+          <h2 style="color:{col};font-size:14px;margin:0 0 8px;font-family:sans-serif;">{title}</h2>
+          <div style="color:#CAE9FF;font-size:13px;line-height:1.75;font-family:sans-serif;">
+            {_md_to_html(content)}
           </div>
-        </div>
-        """
+        </div>"""
 
-    notion_btn = ""
-    if notion_url:
-        notion_btn = (
-            f'<a href="{notion_url}" style="display:inline-block; margin-top:24px; '
-            f'padding:10px 20px; background:#1a73e8; color:white; border-radius:4px; '
-            f'text-decoration:none; font-family:sans-serif; font-size:13px;">'
-            f"Notion에서 전체 보기</a>"
-        )
+    notion_btn = (
+        f'<a href="{notion_url}" style="display:inline-block;margin-top:20px;'
+        f'padding:9px 18px;background:#00B4D8;color:#0D1B2A;border-radius:4px;'
+        f'text-decoration:none;font-family:sans-serif;font-size:13px;font-weight:bold;">'
+        f"Notion에서 전체 보기</a>"
+    ) if notion_url else ""
 
     return f"""<!DOCTYPE html>
-<html lang="ko">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="background:#f8f9fa; padding:0; margin:0;">
-  <div style="max-width:700px; margin:0 auto; background:white; border-radius:8px; overflow:hidden;
-              box-shadow:0 1px 3px rgba(0,0,0,0.12);">
-    <!-- Header -->
-    <div style="background:linear-gradient(135deg,#1a73e8,#0f9d58); padding:32px 32px 24px;">
-      <h1 style="color:white; margin:0; font-size:20px; font-family:sans-serif;">
-        Automotive / AI Semiconductor Daily Brief
+<html lang="ko"><head><meta charset="UTF-8"></head>
+<body style="background:#0D1B2A;padding:0;margin:0;">
+  <div style="max-width:720px;margin:0 auto;background:#162133;border-radius:8px;overflow:hidden;">
+    <div style="background:{header_gradient};padding:28px 28px 20px;">
+      <h1 style="color:#fff;margin:0;font-size:18px;font-family:sans-serif;">
+        [{report_type}] Automotive / AI Semiconductor Brief
       </h1>
-      <p style="color:rgba(255,255,255,0.85); margin:6px 0 0; font-size:13px; font-family:sans-serif;">
-        {date_str} &nbsp;|&nbsp; 수집 기사 {article_count}건 &nbsp;|&nbsp; 키워드: {keywords}
+      <p style="color:rgba(255,255,255,.8);margin:6px 0 0;font-size:12px;font-family:sans-serif;">
+        {subtitle} &nbsp;|&nbsp; 기사 {art_count}건 &nbsp;|&nbsp;
+        분석 엔진: {provider} &nbsp;|&nbsp; 키워드: {keywords}
       </p>
+      {'<p style="color:rgba(255,255,255,.6);margin:3px 0 0;font-size:11px;font-family:sans-serif;">※ PPT 보고서가 첨부되어 있습니다.</p>' if report_type == "Daily" else ""}
     </div>
-    <!-- Body -->
-    <div style="padding:32px;">
-      {sections_html}
-      {notion_btn}
-    </div>
-    <!-- Footer -->
-    <div style="background:#f1f3f4; padding:16px 32px; text-align:center;
-                color:#9aa0a6; font-size:11px; font-family:sans-serif;">
-      Generated by Claude AI &nbsp;|&nbsp; Automotive/AI Semiconductor Strategy Analyzer
+    <div style="padding:28px;">{sections_html}{notion_btn}</div>
+    <div style="background:#0D1B2A;padding:14px 28px;text-align:center;
+                color:#445566;font-size:10px;font-family:sans-serif;">
+      Generated by Multi-LLM Strategy Analyzer (Claude / Gemini / GPT)
     </div>
   </div>
-</body>
-</html>"""
+</body></html>"""
 
 
-def _build_weekly_html(analysis: dict, week_label: str) -> str:
-    sections: dict = analysis.get("sections", {})
-    notion_url = analysis.get("notion_url", "")
+def _send(subject: str, html_body: str, attachments: list[str] | None = None) -> None:
+    gmail_addr  = os.environ["GMAIL_ADDRESS"]
+    app_pw      = os.environ["GMAIL_APP_PASSWORD"]
+    recipients  = [r.strip() for r in os.environ.get("RECIPIENT_EMAILS", gmail_addr).split(",") if r.strip()]
 
-    sections_html = ""
-    for title, content in sections.items():
-        color = _section_color(title)
-        body_html = _markdown_to_html(content)
-        sections_html += f"""
-        <div style="margin-bottom:28px; border-left:4px solid {color}; padding-left:16px;">
-          <h2 style="color:{color}; font-size:15px; margin:0 0 10px 0; font-family:sans-serif;">{title}</h2>
-          <div style="color:#3c4043; font-size:14px; line-height:1.7; font-family:sans-serif;">
-            {body_html}
-          </div>
-        </div>
-        """
-
-    notion_btn = ""
-    if notion_url:
-        notion_btn = (
-            f'<a href="{notion_url}" style="display:inline-block; margin-top:24px; '
-            f'padding:10px 20px; background:#a142f4; color:white; border-radius:4px; '
-            f'text-decoration:none; font-family:sans-serif; font-size:13px;">'
-            f"Notion에서 전체 보기</a>"
-        )
-
-    return f"""<!DOCTYPE html>
-<html lang="ko">
-<head><meta charset="UTF-8"></head>
-<body style="background:#f8f9fa; padding:0; margin:0;">
-  <div style="max-width:700px; margin:0 auto; background:white; border-radius:8px; overflow:hidden;
-              box-shadow:0 1px 3px rgba(0,0,0,0.12);">
-    <div style="background:linear-gradient(135deg,#a142f4,#1a73e8); padding:32px 32px 24px;">
-      <h1 style="color:white; margin:0; font-size:20px; font-family:sans-serif;">
-        Weekly Semiconductor Strategy Report
-      </h1>
-      <p style="color:rgba(255,255,255,0.85); margin:6px 0 0; font-size:13px; font-family:sans-serif;">
-        {week_label} &nbsp;|&nbsp; 일별 분석 {analysis.get('daily_count', 0)}개 취합
-      </p>
-    </div>
-    <div style="padding:32px;">
-      {sections_html}
-      {notion_btn}
-    </div>
-    <div style="background:#f1f3f4; padding:16px 32px; text-align:center;
-                color:#9aa0a6; font-size:11px; font-family:sans-serif;">
-      Generated by Claude AI &nbsp;|&nbsp; Automotive/AI Semiconductor Strategy Analyzer
-    </div>
-  </div>
-</body>
-</html>"""
-
-
-def send_daily_email(analysis: dict) -> None:
-    """Daily 분석 보고서를 Gmail로 발송."""
-    date_str = analysis.get("date", "")
-    subject = f"[Daily Brief] {date_str} Automotive/AI Semiconductor 동향"
-    html_body = _build_daily_html(analysis)
-    _send(subject, html_body)
-
-
-def send_weekly_email(analysis: dict, week_label: str) -> None:
-    """Weekly 보고서를 Gmail로 발송."""
-    subject = f"[Weekly] {week_label} Semiconductor Strategy Report"
-    html_body = _build_weekly_html(analysis, week_label)
-    _send(subject, html_body)
-
-
-def _send(subject: str, html_body: str) -> None:
-    gmail_addr = os.environ["GMAIL_ADDRESS"]
-    app_password = os.environ["GMAIL_APP_PASSWORD"]
-    recipients_raw = os.environ.get("RECIPIENT_EMAILS", gmail_addr)
-    recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
-
-    msg = MIMEMultipart("alternative")
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
-    msg["From"] = f"Semiconductor Brief <{gmail_addr}>"
-    msg["To"] = ", ".join(recipients)
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    msg["From"]    = f"Semiconductor Brief <{gmail_addr}>"
+    msg["To"]      = ", ".join(recipients)
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(gmail_addr, app_password)
-        server.sendmail(gmail_addr, recipients, msg.as_string())
+    alt = MIMEMultipart("alternative")
+    alt.attach(MIMEText(html_body, "html", "utf-8"))
+    msg.attach(alt)
 
-    logger.info("이메일 발송 완료: %s → %s", subject[:50], recipients)
+    for path in (attachments or []):
+        p = Path(path)
+        if not p.exists():
+            logger.warning("첨부 파일 없음: %s", path)
+            continue
+        with open(p, "rb") as f:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(f.read())
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", f'attachment; filename="{p.name}"')
+        msg.attach(part)
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as srv:
+        srv.login(gmail_addr, app_pw)
+        srv.sendmail(gmail_addr, recipients, msg.as_string())
+
+    logger.info("이메일 발송 완료: %s → %s (첨부: %d개)", subject[:50], recipients, len(attachments or []))
+
+
+def send_daily_email(analysis: dict, ppt_path: str | None = None) -> None:
+    date_str = analysis.get("date", "")
+    subject  = f"[Daily Brief] {date_str} Automotive/AI Semiconductor 동향"
+    html     = _build_html(analysis, "Daily")
+    _send(subject, html, attachments=[ppt_path] if ppt_path else [])
+
+
+def send_weekly_email(analysis: dict, week_label: str, ppt_path: str | None = None) -> None:
+    analysis["week_label"] = week_label
+    subject = f"[Weekly] {week_label} Semiconductor Strategy Report"
+    html    = _build_html(analysis, "Weekly")
+    _send(subject, html, attachments=[ppt_path] if ppt_path else [])

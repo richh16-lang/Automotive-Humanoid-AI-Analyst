@@ -1,145 +1,122 @@
-"""Claude API를 이용해 수집된 뉴스를 10가지 양식으로 분석합니다."""
+"""LLM 라우터를 통해 수집된 뉴스를 10가지 양식으로 분석합니다."""
 import logging
-import os
+import re
 from datetime import datetime
 
-import anthropic
-
 from .collector import Article
+from .llm_router import call_llm
 
 logger = logging.getLogger(__name__)
 
-# 분석 결과 타입
-AnalysisResult = dict  # {section_title: str, content: str, ...}
+SYSTEM_PROMPT = """당신은 Automotive/AI 반도체 및 스토리지 분야의 수석 전략 분석가입니다.
+SDV, 자율주행, 휴머노이드 로봇, AI 반도체, 메모리/스토리지 시장을 전문으로 합니다.
+수집된 뉴스를 분석하여 아래 10개 섹션으로 정확하고 날카로운 인사이트 보고서를 작성하세요.
+- 각 섹션은 ## 헤딩으로 구분하세요.
+- 핵심만 간결하게 서술하되, 구체적 수치와 기업명을 포함하세요.
+- 불확실한 내용은 추정임을 명시하고, 근거 없는 내용은 포함하지 마세요.
+- 한국어로 작성하세요."""
 
-SYSTEM_PROMPT = """당신은 Automotive/AI 반도체 분야의 수석 전략 분석가입니다.
-수집된 뉴스 기사들을 분석하여 아래 10가지 섹션으로 구성된 정확하고 날카로운 인사이트 보고서를 작성하세요.
-각 섹션은 마크다운 헤딩(##)으로 구분하고, 핵심만 간결하게 서술하세요.
-불확실한 정보는 추정임을 명시하고, 근거 없는 내용은 포함하지 마세요."""
+ANALYSIS_TEMPLATE = """\
+아래 뉴스 기사들을 분석하여 정확히 10개 섹션으로 보고서를 작성하세요.
 
-ANALYSIS_TEMPLATE = """다음 뉴스 기사들을 분석하여 10가지 섹션으로 보고서를 작성하세요.
+## 1. 핵심 요약
+오늘 가장 중요한 뉴스 3가지를 각각 1줄로 요약하세요.
+각 항목 끝에 반드시 출처 URL을 [링크] 형태로 표기하세요.
+기술적 관점과 비즈니스 관점을 모두 포함하세요.
 
-## 1. 핵심 요약 (Key Highlights)
-- 오늘 가장 중요한 뉴스 3~5개를 bullet point로 요약
+## 2. 기술적 의미
+기존 기술(Legacy) 대비 무엇이 달라졌는지 분석하세요.
+- 기술적 진보 수준 (점진적 개선인가 / 패러다임 전환인가)
+- 핵심 기술 변화 포인트 (아키텍처, 인터페이스, 전력, 성능)
+- 실현 가능성 및 양산 시점 예측
 
-## 2. SoC 영향 분석 (SoC Impact)
-- 관련 SoC 벤더(Qualcomm, NVIDIA, Mobileye, Renesas, NXP, STMicro 등) 동향
-- 신규 칩 발표, 설계 수주, 경쟁 구도 변화
+## 3. AI Agent 아키텍처
+On-device AI와 Cloud AI 에이전트 구조의 변화를 추적하세요.
+- On-device 처리 vs Cloud 오프로드 비율 변화
+- Agentic AI / Physical AI 관점의 아키텍처 시사점
+- KV Cache, 컨텍스트 길이, 추론 방식의 변화
 
-## 3. HBM/스토리지 워크로드 영향 (Memory & Storage Workload)
-- HBM, LPDDR, NAND 수요에 미치는 영향
-- AI/추론 워크로드 변화와 메모리 bandwidth 요구사항
+## 4. 비즈니스 영향
+- 관련 기업의 시장 점유율 변화 가능성
+- 신규 비즈니스 모델(Monetization) 기회
+- 단기 수혜 기업 vs 위협받는 기업 구분
 
-## 4. SDV/자동차 전장 동향 (SDV & Automotive Electronics)
-- Software Defined Vehicle 아키텍처 변화
-- OEM·Tier1·반도체 업체 전략 변화
+## 5. Ecosystem 영향
+- OEM(완성차), Tier 1(보쉬/콘티넨탈 등), SoC 설계사, ODM 간 주도권 변화
+- 새로운 협력/경쟁 구도 형성 여부
+- 표준화(AUTOSAR, SOAFEE 등) 및 플랫폼 잠금(Lock-in) 동향
 
-## 5. 휴머노이드/로봇 동향 (Humanoid & Robotics)
-- 주요 기업(Tesla, Figure, Boston Dynamics 등) 개발 현황
-- 반도체 수요 시사점
+## 6. 향후 전망
+- 단기(1년): 주요 제품 출시, 계약, 인증 일정
+- 중장기(3~5년): 시장 파급력 및 기술 성숙도 예측
+- 불확실성 요인(규제, 경쟁, 기술 장벽)
 
-## 6. 공급망 및 파트너십 (Supply Chain & Partnerships)
-- 신규 계약, JV, 공급망 재편 동향
-- TSMC·삼성·인텔 파운드리 관련 뉴스
+## 7. 메모리/스토리지 영향
+- HBM, LPDDR5x, UFS, SSD 등 부품별 수요 변화
+- 용량, 대역폭, 지연시간(Latency) 요구사항 변화
+- 삼성전자, SK하이닉스, 마이크론 등 메모리 업체 영향
 
-## 7. 경쟁 구도 변화 (Competitive Landscape)
-- 시장 점유율, 포지셔닝 변화
-- 주목할 신규 진입자 또는 철수 동향
+## 8. 스토리지 Workload
+- AI 모델 로딩, 컨텍스트 저장, 추론 캐시 관점의 읽기/쓰기 패턴
+- 데이터 로깅(블랙박스, 사고분석) 워크로드 특성
+- 읽기/쓰기 빈도 변화 및 SSD/UFS 수명(TBW) 영향
+- Sequential vs Random I/O 비율 추정
 
-## 8. 투자·M&A 동향 (Investment & M&A)
-- 주요 펀딩, 인수합병, 전략적 투자
-- 밸류에이션 및 시장 온도
+## 9. 지역별 영향
+- 미국: 설계·IP 관점 (NVIDIA, Qualcomm, 인텔 파운드리)
+- 중국: 공급망·자체개발 관점 (화웨이, BYD, CXMT)
+- 한국: 메모리·스토리지 관점 (삼성, SK하이닉스)
+- 유럽: 규제·안전 관점 (UN-R155, ISO 26262, CSMS)
 
-## 9. 규제·정책 시사점 (Regulatory & Policy)
-- 각국 반도체·자동차 정책 변화
-- 수출통제, 보조금, 안전 규제 동향
-
-## 10. 전략적 권고사항 (Strategic Recommendations)
-- 분석가 관점의 핵심 액션 아이템 (3개 이내)
-- 단기(1~3개월) 주목 포인트
+## 10. Why Now?
+왜 지금 이 뉴스가 중요한지 전략적 시급성을 평가하세요.
+- 타이밍의 의미 (시장 사이클, 경쟁 압력, 규제 마감)
+- 지금 당장 주목해야 할 신호(Signal) vs 노이즈(Noise) 구분
+- 분석가 관점의 핵심 액션 아이템 1~2개
 
 ---
-분석할 뉴스 기사:
+분석할 뉴스 기사 ({count}건):
 {articles_text}
 """
 
+WEEKLY_TEMPLATE = """\
+지난 한 주간 일별 보고서를 종합하여 Weekly 전략 보고서를 작성하세요.
 
-def _format_articles_for_prompt(articles: list[Article]) -> str:
+## 1. 이번 주 핵심 테마
+## 2. 기술 트렌드 주간 요약
+## 3. AI Agent/Physical AI 동향
+## 4. 메모리·스토리지 시장 신호
+## 5. SDV/자율주행 주간 흐름
+## 6. 휴머노이드·로봇 주간 동향
+## 7. Ecosystem 주도권 변화
+## 8. 지역별 주간 동향 (미국/중국/한국/유럽)
+## 9. 다음 주 Watch List (3개 이내)
+## 10. 주간 전략 결론 및 권고사항
+
+---
+일별 보고서 ({count}개):
+{combined}
+"""
+
+
+def _format_articles(articles: list[Article]) -> str:
     parts = []
-    for i, art in enumerate(articles, 1):
-        pub = art.published.strftime("%Y-%m-%d %H:%M UTC") if art.published else "날짜 미상"
-        body = art.full_text or art.summary or "(본문 없음)"
+    for i, a in enumerate(articles, 1):
+        pub = a.published.strftime("%Y-%m-%d %H:%M UTC") if a.published else "날짜 미상"
+        body = a.full_text or a.summary or "(본문 없음)"
         parts.append(
-            f"[기사 {i}] {art.source} | {pub}\n"
-            f"제목: {art.title}\n"
-            f"URL: {art.url}\n"
-            f"키워드: {', '.join(art.matched_keywords)}\n"
-            f"내용: {body}\n"
+            f"[{i}] {a.source} | {pub}\n"
+            f"제목: {a.title}\n"
+            f"URL: {a.url}\n"
+            f"키워드: {', '.join(a.matched_keywords)}\n"
+            f"내용: {body[:2000]}\n"
         )
     return "\n---\n".join(parts)
 
 
-def analyze_articles(
-    articles: list[Article],
-    model: str | None = None,
-    date_str: str | None = None,
-) -> dict:
-    """
-    Claude API로 기사 분석 후 결과 dict 반환.
-    prompt caching으로 system prompt 재사용 비용 절감.
-    """
-    if not articles:
-        logger.warning("분석할 기사가 없습니다.")
-        return {"error": "수집된 기사 없음", "raw": "", "date": date_str or ""}
-
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    model = model or os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
-    date_str = date_str or datetime.utcnow().strftime("%Y-%m-%d")
-
-    articles_text = _format_articles_for_prompt(articles)
-    user_content = ANALYSIS_TEMPLATE.format(articles_text=articles_text)
-
-    logger.info("Claude API 분석 시작 (모델: %s, 기사: %d건)", model, len(articles))
-
-    response = client.messages.create(
-        model=model,
-        max_tokens=4096,
-        system=[
-            {
-                "type": "text",
-                "text": SYSTEM_PROMPT,
-                "cache_control": {"type": "ephemeral"},  # prompt caching
-            }
-        ],
-        messages=[{"role": "user", "content": user_content}],
-    )
-
-    raw_text = response.content[0].text
-    logger.info(
-        "분석 완료 | 입력 토큰: %d (캐시 히트: %d) | 출력 토큰: %d",
-        response.usage.input_tokens,
-        getattr(response.usage, "cache_read_input_tokens", 0),
-        response.usage.output_tokens,
-    )
-
-    sections = _parse_sections(raw_text)
-    return {
-        "date": date_str,
-        "article_count": len(articles),
-        "model": model,
-        "raw": raw_text,
-        "sections": sections,
-        "sources": list({a.source for a in articles}),
-        "keywords_found": list({kw for a in articles for kw in a.matched_keywords}),
-    }
-
-
 def _parse_sections(text: str) -> dict[str, str]:
-    """마크다운 ## 헤딩 기준으로 섹션 분리."""
-    import re
     sections: dict[str, str] = {}
-    pattern = re.compile(r"^##\s+(.+)$", re.MULTILINE)
-    matches = list(pattern.finditer(text))
+    matches = list(re.finditer(r"^##\s+(.+)$", text, re.MULTILINE))
     for i, m in enumerate(matches):
         title = m.group(1).strip()
         start = m.end()
@@ -148,53 +125,54 @@ def _parse_sections(text: str) -> dict[str, str]:
     return sections
 
 
-def analyze_weekly(daily_analyses: list[dict], model: str | None = None) -> dict:
-    """
-    한 주간 daily 분석 결과를 받아 Weekly 요약 보고서 생성.
-    """
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    model = model or os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+def analyze_articles(
+    articles: list[Article],
+    date_str: str | None = None,
+) -> dict:
+    if not articles:
+        logger.warning("분석할 기사가 없습니다.")
+        return {"error": "수집된 기사 없음", "raw": "", "date": date_str or ""}
 
+    date_str = date_str or datetime.utcnow().strftime("%Y-%m-%d")
+    articles_text = _format_articles(articles)
+    user_content = ANALYSIS_TEMPLATE.format(
+        count=len(articles),
+        articles_text=articles_text,
+    )
+
+    logger.info("LLM 분석 시작 (기사: %d건)", len(articles))
+    raw_text, provider = call_llm(SYSTEM_PROMPT, user_content)
+    logger.info("분석 완료 (provider: %s)", provider)
+
+    return {
+        "date": date_str,
+        "article_count": len(articles),
+        "provider": provider,
+        "raw": raw_text,
+        "sections": _parse_sections(raw_text),
+        "sources": list({a.source for a in articles}),
+        "keywords_found": list({kw for a in articles for kw in a.matched_keywords}),
+    }
+
+
+def analyze_weekly(daily_analyses: list[dict]) -> dict:
     combined = "\n\n===\n\n".join(
-        f"[{d.get('date', 'N/A')}] 기사 {d.get('article_count', 0)}건\n{d.get('raw', '')}"
+        f"[{d.get('date', 'N/A')}] (provider: {d.get('provider', '-')})\n{d.get('raw', '')}"
         for d in daily_analyses
     )
-
-    weekly_prompt = f"""지난 한 주간의 일별 분석 보고서를 종합하여 Weekly 전략 보고서를 작성하세요.
-
-## 1. 이번 주 핵심 테마 (Top Themes of the Week)
-## 2. SoC/반도체 주간 주요 동향
-## 3. SDV/자동차 전장 주간 흐름
-## 4. 휴머노이드·로봇 주간 동향
-## 5. HBM·메모리 시장 신호
-## 6. 공급망 및 투자 주간 리뷰
-## 7. 다음 주 주목 포인트 (Watch List)
-## 8. 주간 전략 결론
-
----
-일별 보고서:
-{combined[:15000]}
-"""
-
-    logger.info("Weekly 분석 시작 (일별 데이터 %d개)", len(daily_analyses))
-    response = client.messages.create(
-        model=model,
-        max_tokens=4096,
-        system=[
-            {
-                "type": "text",
-                "text": SYSTEM_PROMPT,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        messages=[{"role": "user", "content": weekly_prompt}],
+    user_content = WEEKLY_TEMPLATE.format(
+        count=len(daily_analyses),
+        combined=combined[:15000],
     )
 
-    raw_text = response.content[0].text
+    logger.info("Weekly LLM 분석 시작 (일별 %d개)", len(daily_analyses))
+    raw_text, provider = call_llm(SYSTEM_PROMPT, user_content)
+    logger.info("Weekly 분석 완료 (provider: %s)", provider)
+
     return {
         "type": "weekly",
         "raw": raw_text,
         "sections": _parse_sections(raw_text),
         "daily_count": len(daily_analyses),
-        "model": model,
+        "provider": provider,
     }

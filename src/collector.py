@@ -75,11 +75,15 @@ def _parse_published(entry) -> Optional[datetime]:
 
 
 def _is_recent(dt: Optional[datetime], hours: int = 26) -> bool:
-    """수집 범위: 지난 N시간 이내."""
+    """수집 범위: 지난 N시간 이내. 날짜 없으면 포함(Google News 등)."""
     if dt is None:
-        return True  # 날짜 없으면 일단 포함
+        return True
     cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
     return dt >= cutoff
+
+
+def _is_google_news_feed(url: str) -> bool:
+    return "news.google.com" in url
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -131,9 +135,13 @@ def collect_from_rss(feed_cfg: dict, keywords: list[str], hours: int = 26) -> li
         if not _is_recent(published, hours):
             continue
 
-        matched = _contains_keyword(title + " " + summary, keywords)
-        if not matched:
-            continue
+        # Google News는 키워드로 검색한 결과이므로 필터 생략
+        if _is_google_news_feed(feed_cfg["url"]):
+            matched = [feed_cfg["name"].split(" - ")[-1]]
+        else:
+            matched = _contains_keyword(title + " " + summary, keywords)
+            if not matched:
+                continue
 
         full_text = _extract_article_text(link) if link else ""
 
