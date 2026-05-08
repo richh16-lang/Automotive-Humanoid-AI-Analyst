@@ -1,0 +1,108 @@
+keywords:
+  - SDV
+  - Humanoid
+  - HBM
+  - SoC
+  - "Software Defined Vehicle"
+  - "High Bandwidth Memory"
+  - "System on Chip"
+  - ADAS
+  - "autonomous driving"
+  - "automotive semiconductor"
+
+rss_feeds:
+  # ── 반도체 / EE 전문 ─────────────────────────────────────
+  - name: "EE Times"
+    url: "https://www.eetimes.com/feed/"
+    category: semiconductor
+
+  - name: "IEEE Spectrum"
+    url: "https://spectrum.ieee.org/feeds/feed.rss"
+    category: semiconductor
+
+  - name: "Electronics Weekly"
+    url: "https://www.electronicsweekly.com/feed/"
+    category: semiconductor
+
+  - name: "Semiconductor Engineering"
+    url: "https://semiengineering.com/feed/"
+    category: semiconductor
+
+  - name: "AnySilicon"
+    url: "https://anysilicon.com/feed/"
+    category: semiconductor
+
+  # ── AI / Tech 전반 ────────────────────────────────────────
+  - name: "TechCrunch"
+    url: "https://techcrunch.com/feed/"
+    category: tech
+
+  - name: "The Verge"
+    url: "https://www.theverge.com/rss/index.xml"
+    category: tech
+
+  - name: "Ars Technica"
+    url: "http://feeds.arstechnica.com/arstechnica/technology-lab"
+    category: tech
+
+  - name: "VentureBeat AI"
+    url: "https://venturebeat.com/category/ai/feed/"
+    category: ai
+
+  - name: "MIT Technology Review"
+    url: "https://www.technologyreview.com/feed/"
+    category: ai
+
+  # ── 자동차 / SDV ──────────────────────────────────────────
+  - name: "Electrek"
+    url: "https://electrek.co/feed/"
+    category: automotive
+
+  - name: "InsideEVs"
+    url: "https://insideevs.com/rss/articles/all/"
+    category: automotive
+
+  - name: "SAE International"
+    url: "https://www.sae.org/rss/all-technical-papers.rss"
+    category: automotive
+
+  # ── 로봇 / 휴머노이드 ─────────────────────────────────────
+  - name: "IEEE Robotics"
+    url: "https://ieeexplore.ieee.org/rss/TOC68.XML"
+    category: robotics
+
+  - name: "The Robot Report"
+    url: "https://www.therobotreport.com/feed/"
+    category: robotics
+
+  # ── 금융 / 투자 ────────────────────────────────────────────
+  - name: "Reuters Technology"
+    url: "https://feeds.reuters.com/reuters/technologyNews"
+    category: finance
+
+  - name: "Bloomberg Technology (public)"
+    url: "https://feeds.bloomberg.com/technology/news.rss"
+    category: finance
+
+  # ── 한국 언론 ─────────────────────────────────────────────
+  - name: "전자신문 (ETNews)"
+    url: "https://rss.etnews.com/Section901.xml"
+    category: korea
+
+  - name: "ZDNet Korea"
+    url: "https://www.zdnet.co.kr/rss/news/all_news_rss.xml"
+    category: korea
+
+  - name: "디지털타임스"
+    url: "http://www.dt.co.kr/rss/rss.xml"
+    category: korea
+
+scrape_sites:
+  - name: "SemiAnalysis"
+    url: "https://www.semianalysis.com/"
+    selector: "article h2 a"
+    category: semiconductor
+
+  - name: "Digitimes (headlines)"
+    url: "https://www.digitimes.com/news/rss.asp"
+    category: semiconductor
