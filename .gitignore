@@ -1,10 +1,38 @@
+# Environments
 .env
-__pycache__/
-*.pyc
-*.pyo
-.pytest_cache/
-.venv/
+.envrc
+.venv
+env/
 venv/
+ENV/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[codz]
+*$py.class
+
+# Distribution / packaging
+build/
 dist/
 *.egg-info/
+.eggs/
+
+# Unit test / coverage reports
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Editors
+.vscode/
+.idea/
+*.sublime-project
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Misc
+*.pyc
+*.pyo
+*.log
