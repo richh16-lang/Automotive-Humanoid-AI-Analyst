@@ -250,10 +250,10 @@ def render_sidebar() -> dict:
         # 타이틀
         st.markdown(
             "<div style='text-align:center;padding:12px 0 6px'>"
-            "<span style='font-size:24px'>🔬</span><br>"
-            "<span style='color:#00B4D8;font-weight:800;font-size:15px'>"
+            "<span style='font-size:28px'>🔬</span><br>"
+            "<span style='color:#00B4D8;font-weight:800;font-size:18px'>"
             "Inchang's Agent</span><br>"
-            "<span style='color:#546E7A;font-size:10px'>Edge AI (Auto&Humanoid) 분석</span>"
+            "<span style='color:#90CAE4;font-size:13px;font-weight:600'>Edge AI (Auto&Humanoid) 분석</span>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -834,7 +834,7 @@ def main() -> None:
     st.markdown(
         "<h1 style='color:#00B4D8;font-size:28px;font-weight:900;"
         "margin-bottom:2px;letter-spacing:-0.5px'>"
-        "🔬 Edge AI &amp; Mobility Memory Intelligence"
+        "🔬 Inchang's Agent - Edge AI (Auto&amp;Humanoid) 분석"
         "</h1>"
         "<p style='color:#546E7A;font-size:13px;margin-top:0;margin-bottom:8px'>"
         "AI/Semiconductor Daily News &nbsp;|&nbsp; "
@@ -966,7 +966,7 @@ def main() -> None:
     st.markdown("---")
     st.markdown(
         "<div style='text-align:center;color:#1E3A5F;font-size:11px;padding:8px'>"
-        "Edge AI &amp; Mobility Memory Intelligence Dashboard &nbsp;·&nbsp; "
+        "Inchang's Agent - Edge AI (Auto&amp;Humanoid) 분석 &nbsp;·&nbsp; "
         "Multi-LLM: Claude → Gemini → GPT → DeepSeek → Groq → Mistral &nbsp;·&nbsp; "
         "Auto-fallback enabled"
         "</div>",
