@@ -47,14 +47,17 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENT_EMAILS: ${{ secrets.RECIPIENT_EMAILS }}
           PPT_OUTPUT_DIR: "/tmp"
+          MD_OUTPUT_DIR:  "/tmp"
         run: python weekly_main.py
 
-      - name: Upload Weekly PPT as artifact
+      - name: Upload Weekly Word + Markdown as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: weekly-ppt-${{ github.run_id }}
-          path: /tmp/semiconductor_brief_*.pptx
+          name: weekly-report-${{ github.run_id }}
+          path: |
+            /tmp/semiconductor_brief_*.docx
+            /tmp/semiconductor_brief_*.md
           retention-days: 90
           if-no-files-found: ignore
 
