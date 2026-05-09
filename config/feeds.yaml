@@ -3,36 +3,69 @@ keywords:
   - SDV
   - ADV
   - "Zonal Architecture"
+  - "Centralized Storage"
   - "Tesla FSD"
   - "NVIDIA DRIVE"
   - "Automotive AI"
   - "Physical AI"
   - "Agentic AI"
-  - "Humanoid Robot"
+  - "End-to-End AI"
+  - "Visual Foundation Models"
+  - AUTOSAR
+  - ADAS
 
-  # ── AI 반도체 / 아키텍처 ───────────────────────────────────
+  # ── 휴머노이드 로봇 ────────────────────────────────────────
+  - "Humanoid Robot"
+  - "Humanoid Actuator Control AI"
+  - "Real-time Edge Inference"
+
+  # ── AI 모델 / 알고리즘 ─────────────────────────────────────
   - "Edge AI"
-  - Qualcomm
   - "KV Cache"
   - "KV cache write amplification"
+  - "Speculative Decoding"
+  - "Quantization aware training"
+  - "MoE Model"
+  - "Chiplet interconnect"
+  - "Shared Memory Pool"
+
+  # ── AI 반도체 / SoC ────────────────────────────────────────
+  - Qualcomm
+  - Snapdragon
+  - Blackwell
+  - HBM
+  - CXL
+  - "CXL Edge"
   - "PCIe Gen6"
-  - "Data logging write amplification"
+  - NVIDIA
+  - Mobileye
 
   # ── 메모리 / 스토리지 ─────────────────────────────────────
+  - LPDDR6
+  - "LPDDR5X"
   - "Automotive Memory"
   - UFS
+  - NVMe
   - SSD
-  - Storage
   - Kioxia
-  - Hynix
+  - "SK Hynix"
   - Micron
   - WAF
   - TBW
+  - "Write Amplification"
+  - "Determinism in Storage"
+  - "AEC-Q100"
+  - "Data logging write amplification"
+
 
 rss_feeds:
 
-  # ── Google News 키워드 검색 ────────────────────────────────
-  - name: "Google News - SDV/Zonal Architecture"
+  # ════════════════════════════════════════════════════════════
+  # 1. Google News — 단일 키워드 검색
+  # ════════════════════════════════════════════════════════════
+
+  # ── 자율주행 / SDV ─────────────────────────────────────────
+  - name: "Google News - SDV Zonal Architecture"
     url: "https://news.google.com/rss/search?q=SDV+%22Zonal+Architecture%22+software+defined+vehicle&hl=en&gl=US&ceid=US:en"
     category: sdv
 
@@ -44,51 +77,272 @@ rss_feeds:
     url: "https://news.google.com/rss/search?q=NVIDIA+DRIVE+automotive+AI+chip&hl=en&gl=US&ceid=US:en"
     category: semiconductor
 
-  - name: "Google News - Physical AI"
+  - name: "Google News - Physical AI Agentic"
     url: "https://news.google.com/rss/search?q=%22Physical+AI%22+OR+%22Agentic+AI%22+automotive&hl=en&gl=US&ceid=US:en"
     category: ai
 
-  - name: "Google News - Humanoid Robot"
+  - name: "Google News - End-to-End AI Visual Foundation"
+    url: "https://news.google.com/rss/search?q=%22End-to-End+AI%22+OR+%22Visual+Foundation+Models%22+automotive&hl=en&gl=US&ceid=US:en"
+    category: ai
+
+  - name: "Google News - Mobileye ADAS"
+    url: "https://news.google.com/rss/search?q=Mobileye+ADAS+autonomous+driving+chip&hl=en&gl=US&ceid=US:en"
+    category: automotive
+
+  # ── 휴머노이드 ─────────────────────────────────────────────
+  - name: "Google News - Humanoid Robot AI"
     url: "https://news.google.com/rss/search?q=humanoid+robot+AI+semiconductor&hl=en&gl=US&ceid=US:en"
     category: humanoid
 
-  - name: "Google News - KV Cache Storage"
+  - name: "Google News - Humanoid Actuator Edge AI"
+    url: "https://news.google.com/rss/search?q=%22humanoid%22+%22actuator%22+%22edge+inference%22+OR+%22real-time%22&hl=en&gl=US&ceid=US:en"
+    category: humanoid
+
+  # ── AI 모델 / 알고리즘 ─────────────────────────────────────
+  - name: "Google News - KV Cache Storage Inference"
     url: "https://news.google.com/rss/search?q=%22KV+cache%22+storage+AI+inference&hl=en&gl=US&ceid=US:en"
     category: ai
 
-  - name: "Google News - Automotive Memory UFS"
-    url: "https://news.google.com/rss/search?q=automotive+memory+UFS+SSD+storage+semiconductor&hl=en&gl=US&ceid=US:en"
+  - name: "Google News - Speculative Decoding MoE"
+    url: "https://news.google.com/rss/search?q=%22Speculative+Decoding%22+OR+%22MoE+Model%22+memory+inference&hl=en&gl=US&ceid=US:en"
+    category: ai
+
+  - name: "Google News - Quantization Edge Inference"
+    url: "https://news.google.com/rss/search?q=%22Quantization+aware+training%22+OR+%22Real-time+Edge+Inference%22+semiconductor&hl=en&gl=US&ceid=US:en"
+    category: ai
+
+  # ── AI 반도체 / SoC ────────────────────────────────────────
+  - name: "Google News - Edge AI Qualcomm Snapdragon"
+    url: "https://news.google.com/rss/search?q=edge+AI+Qualcomm+Snapdragon+automotive+SoC&hl=en&gl=US&ceid=US:en"
+    category: semiconductor
+
+  - name: "Google News - NVIDIA Blackwell"
+    url: "https://news.google.com/rss/search?q=NVIDIA+Blackwell+GPU+AI+inference&hl=en&gl=US&ceid=US:en"
+    category: semiconductor
+
+  - name: "Google News - HBM CXL Chiplet"
+    url: "https://news.google.com/rss/search?q=HBM+OR+CXL+OR+%22Chiplet+interconnect%22+semiconductor&hl=en&gl=US&ceid=US:en"
+    category: semiconductor
+
+  - name: "Google News - Shared Memory Pool CXL Edge"
+    url: "https://news.google.com/rss/search?q=%22Shared+Memory+Pool%22+OR+%22CXL+Edge%22+automotive+AI&hl=en&gl=US&ceid=US:en"
+    category: memory
+
+  # ── 메모리 / 스토리지 ─────────────────────────────────────
+  - name: "Google News - LPDDR6 Memory"
+    url: "https://news.google.com/rss/search?q=LPDDR6+OR+%22LPDDR5X%22+automotive+memory&hl=en&gl=US&ceid=US:en"
+    category: memory
+
+  - name: "Google News - Automotive Memory UFS NVMe"
+    url: "https://news.google.com/rss/search?q=automotive+memory+UFS+NVMe+SSD+storage+semiconductor&hl=en&gl=US&ceid=US:en"
     category: memory
 
   - name: "Google News - PCIe Gen6 Storage"
     url: "https://news.google.com/rss/search?q=%22PCIe+Gen6%22+OR+%22PCIe+6%22+storage+automotive&hl=en&gl=US&ceid=US:en"
     category: storage
 
-  - name: "Google News - WAF TBW SSD"
-    url: "https://news.google.com/rss/search?q=WAF+TBW+SSD+write+amplification+automotive&hl=en&gl=US&ceid=US:en"
+  - name: "Google News - WAF TBW Write Amplification"
+    url: "https://news.google.com/rss/search?q=WAF+TBW+%22Write+Amplification%22+SSD+automotive&hl=en&gl=US&ceid=US:en"
+    category: storage
+
+  - name: "Google News - Determinism Storage AEC-Q100"
+    url: "https://news.google.com/rss/search?q=%22Determinism+in+Storage%22+OR+%22AEC-Q100%22+automotive+storage&hl=en&gl=US&ceid=US:en"
     category: storage
 
   - name: "Google News - Kioxia Micron NAND"
     url: "https://news.google.com/rss/search?q=Kioxia+OR+Micron+NAND+automotive+storage&hl=en&gl=US&ceid=US:en"
     category: memory
 
-  - name: "Google News - Edge AI Qualcomm"
-    url: "https://news.google.com/rss/search?q=edge+AI+Qualcomm+automotive+SoC&hl=en&gl=US&ceid=US:en"
-    category: semiconductor
+  - name: "Google News - SK Hynix HBM"
+    url: "https://news.google.com/rss/search?q=%22SK+Hynix%22+HBM+memory+AI+automotive&hl=en&gl=US&ceid=US:en"
+    category: memory
 
-  - name: "Google News - 자율주행 반도체"
+  # ── 한국어 ─────────────────────────────────────────────────
+  - name: "Google News KR - 자율주행 SDV 반도체"
     url: "https://news.google.com/rss/search?q=%EC%9E%90%EC%9C%A8%EC%A3%BC%ED%96%89+SDV+%EB%B0%98%EB%8F%84%EC%B2%B4&hl=ko&gl=KR&ceid=KR:ko"
     category: korea
 
-  - name: "Google News - 자동차 메모리 스토리지"
+  - name: "Google News KR - 자동차 메모리 스토리지"
     url: "https://news.google.com/rss/search?q=%EC%9E%90%EB%8F%99%EC%B0%A8+%EB%A9%94%EB%AA%A8%EB%A6%AC+UFS+SSD&hl=ko&gl=KR&ceid=KR:ko"
     category: korea
 
-  - name: "Google News - 휴머노이드 AI 반도체"
+  - name: "Google News KR - 휴머노이드 AI 반도체"
     url: "https://news.google.com/rss/search?q=%ED%9C%B4%EB%A8%B8%EB%85%B8%EC%9D%B4%EB%93%9C+AI+%EB%B0%98%EB%8F%84%EC%B2%B4&hl=ko&gl=KR&ceid=KR:ko"
     category: korea
 
-  # ── 전문 학술/기술 소스 ────────────────────────────────────
+  - name: "Google News KR - HBM SK하이닉스 마이크론"
+    url: "https://news.google.com/rss/search?q=HBM+%EC%97%94%EB%B9%84%EB%94%94%EC%95%84+%EB%A9%94%EB%AA%A8%EB%A6%AC+AI&hl=ko&gl=KR&ceid=KR:ko"
+    category: korea
+
+
+  # ════════════════════════════════════════════════════════════
+  # 2. Google News — 크로스레퍼런스 (SoC/알고리즘 × 메모리/스토리지)
+  # ════════════════════════════════════════════════════════════
+
+  - name: "CrossRef - NVIDIA DRIVE × LPDDR6"
+    url: "https://news.google.com/rss/search?q=%22NVIDIA+DRIVE%22+%22LPDDR6%22+automotive+memory&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Tesla FSD × Storage Bottleneck"
+    url: "https://news.google.com/rss/search?q=%22Tesla+FSD%22+storage+bottleneck+OR+%22data+logging%22&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Qualcomm Snapdragon × LPDDR6"
+    url: "https://news.google.com/rss/search?q=Qualcomm+Snapdragon+LPDDR6+OR+%22LPDDR5X%22+automotive&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Blackwell × KV Cache"
+    url: "https://news.google.com/rss/search?q=Blackwell+%22KV+Cache%22+inference+memory&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Edge AI × CXL Memory"
+    url: "https://news.google.com/rss/search?q=%22Edge+AI%22+CXL+memory+pool+inference&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Humanoid Robot × HBM Memory"
+    url: "https://news.google.com/rss/search?q=humanoid+robot+HBM+OR+%22shared+memory%22+AI+inference&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - MoE Model × Edge Storage"
+    url: "https://news.google.com/rss/search?q=%22MoE%22+OR+%22Mixture+of+Experts%22+edge+storage+memory+bottleneck&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Speculative Decoding × DRAM Bandwidth"
+    url: "https://news.google.com/rss/search?q=%22Speculative+Decoding%22+DRAM+bandwidth+OR+memory+latency&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Automotive SoC × NVMe PCIe Gen6"
+    url: "https://news.google.com/rss/search?q=automotive+SoC+NVMe+%22PCIe+Gen6%22+OR+%22PCIe+6%22&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Chiplet × Automotive Grade"
+    url: "https://news.google.com/rss/search?q=%22Chiplet%22+automotive+%22AEC-Q100%22+OR+%22functional+safety%22&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Physical AI × Real-time Storage"
+    url: "https://news.google.com/rss/search?q=%22Physical+AI%22+%22real-time%22+storage+OR+%22write+amplification%22&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Zonal Architecture × Centralized Storage"
+    url: "https://news.google.com/rss/search?q=%22Zonal+Architecture%22+%22Centralized+Storage%22+OR+%22shared+storage%22+automotive&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+
+  # ════════════════════════════════════════════════════════════
+  # 3. 반도체 회사 공식 뉴스룸 / IR
+  # ════════════════════════════════════════════════════════════
+
+  - name: "NVIDIA Blog (Official)"
+    url: "https://blogs.nvidia.com/feed/"
+    category: company_news
+
+  - name: "NVIDIA Newsroom"
+    url: "https://nvidianews.nvidia.com/rss/news"
+    category: company_news
+
+  - name: "Qualcomm News"
+    url: "https://www.qualcomm.com/news/rss.xml"
+    category: company_news
+
+  - name: "Micron Insight Blog"
+    url: "https://www.micron.com/about/blog/rss"
+    category: company_news
+
+  - name: "Google News - Micron Earnings IR"
+    url: "https://news.google.com/rss/search?q=Micron+earnings+OR+%22investor+relations%22+OR+%22quarterly+results%22+semiconductor&hl=en&gl=US&ceid=US:en"
+    category: earnings
+
+  - name: "Google News - SK Hynix Earnings"
+    url: "https://news.google.com/rss/search?q=%22SK+Hynix%22+earnings+OR+%22quarterly+results%22+HBM+memory&hl=en&gl=US&ceid=US:en"
+    category: earnings
+
+  - name: "Google News - Kioxia Earnings"
+    url: "https://news.google.com/rss/search?q=Kioxia+earnings+OR+IPO+NAND+flash+storage&hl=en&gl=US&ceid=US:en"
+    category: earnings
+
+  - name: "Google News - NVIDIA Earnings"
+    url: "https://news.google.com/rss/search?q=NVIDIA+earnings+%22earnings+call%22+OR+%22quarterly+results%22+AI+chip&hl=en&gl=US&ceid=US:en"
+    category: earnings
+
+  - name: "Google News - Qualcomm Earnings"
+    url: "https://news.google.com/rss/search?q=Qualcomm+earnings+%22earnings+call%22+automotive+Snapdragon&hl=en&gl=US&ceid=US:en"
+    category: earnings
+
+  - name: "Google News - Samsung Semiconductor"
+    url: "https://news.google.com/rss/search?q=Samsung+semiconductor+HBM+LPDDR+automotive+storage&hl=en&gl=US&ceid=US:en"
+    category: company_news
+
+  - name: "Google News - Western Digital Seagate"
+    url: "https://news.google.com/rss/search?q=%22Western+Digital%22+OR+Seagate+automotive+NVMe+SSD+storage&hl=en&gl=US&ceid=US:en"
+    category: company_news
+
+
+  # ════════════════════════════════════════════════════════════
+  # 4. Conference / Keynote / 전시회
+  # ════════════════════════════════════════════════════════════
+
+  - name: "Google News - Hot Chips Conference"
+    url: "https://news.google.com/rss/search?q=%22Hot+Chips%22+2025+AI+semiconductor+architecture&hl=en&gl=US&ceid=US:en"
+    category: conference
+
+  - name: "Google News - ISSCC 2025"
+    url: "https://news.google.com/rss/search?q=ISSCC+2025+memory+AI+semiconductor+chip&hl=en&gl=US&ceid=US:en"
+    category: conference
+
+  - name: "Google News - GTC NVIDIA Keynote"
+    url: "https://news.google.com/rss/search?q=GTC+NVIDIA+keynote+2025+AI+automotive+Blackwell&hl=en&gl=US&ceid=US:en"
+    category: conference
+
+  - name: "Google News - CES Automotive AI"
+    url: "https://news.google.com/rss/search?q=CES+2025+automotive+AI+SDV+memory+semiconductor&hl=en&gl=US&ceid=US:en"
+    category: conference
+
+  - name: "Google News - Computex AI Chip"
+    url: "https://news.google.com/rss/search?q=Computex+2025+AI+chip+edge+inference+memory&hl=en&gl=US&ceid=US:en"
+    category: conference
+
+  - name: "Google News - Flash Memory Summit FMS"
+    url: "https://news.google.com/rss/search?q=%22Flash+Memory+Summit%22+OR+%22FMS+2025%22+NVMe+storage+automotive&hl=en&gl=US&ceid=US:en"
+    category: conference
+
+  - name: "Google News - VLSI Symposium"
+    url: "https://news.google.com/rss/search?q=%22VLSI+Symposium%22+2025+memory+AI+semiconductor&hl=en&gl=US&ceid=US:en"
+    category: conference
+
+  - name: "Google News - DAC Design Automation"
+    url: "https://news.google.com/rss/search?q=%22Design+Automation+Conference%22+DAC+2025+automotive+AI+chip&hl=en&gl=US&ceid=US:en"
+    category: conference
+
+  - name: "Google News - Auto Shanghai Beijing Motor"
+    url: "https://news.google.com/rss/search?q=%22Auto+Shanghai%22+OR+%22Beijing+Motor%22+2025+SDV+AI+chip&hl=en&gl=US&ceid=US:en"
+    category: conference
+
+
+  # ════════════════════════════════════════════════════════════
+  # 5. 특허 / 기술 동향
+  # ════════════════════════════════════════════════════════════
+
+  - name: "Google News - NVIDIA Patent Storage AI"
+    url: "https://news.google.com/rss/search?q=NVIDIA+patent+storage+AI+inference+automotive&hl=en&gl=US&ceid=US:en"
+    category: patent
+
+  - name: "Google News - Qualcomm Patent Automotive Memory"
+    url: "https://news.google.com/rss/search?q=Qualcomm+patent+automotive+memory+edge+AI&hl=en&gl=US&ceid=US:en"
+    category: patent
+
+  - name: "Google News - Samsung Micron Patent NAND HBM"
+    url: "https://news.google.com/rss/search?q=Samsung+OR+Micron+patent+NAND+HBM+automotive+AI&hl=en&gl=US&ceid=US:en"
+    category: patent
+
+  - name: "Google News - CXL PCIe Patent Storage"
+    url: "https://news.google.com/rss/search?q=CXL+%22PCIe+Gen6%22+patent+memory+pool+automotive&hl=en&gl=US&ceid=US:en"
+    category: patent
+
+
+  # ════════════════════════════════════════════════════════════
+  # 6. 학술 논문 (Arxiv RSS)
+  # ════════════════════════════════════════════════════════════
+
   - name: "Arxiv - Computer Architecture (cs.AR)"
     url: "https://rss.arxiv.org/rss/cs.AR"
     category: research
@@ -101,21 +355,41 @@ rss_feeds:
     url: "https://rss.arxiv.org/rss/eess.SY"
     category: research
 
+  - name: "Arxiv - Robotics (cs.RO)"
+    url: "https://rss.arxiv.org/rss/cs.RO"
+    category: research
+
+  - name: "Arxiv - Hardware & Architecture (cs.ET)"
+    url: "https://rss.arxiv.org/rss/cs.ET"
+    category: research
+
+
+  # ════════════════════════════════════════════════════════════
+  # 7. 전문 반도체 미디어 RSS
+  # ════════════════════════════════════════════════════════════
+
   - name: "SemiWiki"
     url: "https://semiwiki.com/feed/"
     category: semiconductor
 
-  - name: "Google News - TechInsights Semiconductor"
-    url: "https://news.google.com/rss/search?q=TechInsights+semiconductor+automotive+analysis&hl=en&gl=US&ceid=US:en"
-    category: semiconductor
-
-  # ── 전문 미디어 RSS ────────────────────────────────────────
   - name: "Semiconductor Engineering"
     url: "https://semiengineering.com/feed/"
     category: semiconductor
 
   - name: "EE Times"
     url: "https://www.eetimes.com/feed/"
+    category: semiconductor
+
+  - name: "IEEE Spectrum"
+    url: "https://spectrum.ieee.org/feeds/feed.rss"
+    category: semiconductor
+
+  - name: "AnandTech"
+    url: "https://www.anandtech.com/rss/"
+    category: semiconductor
+
+  - name: "Tom's Hardware"
+    url: "https://www.tomshardware.com/feeds/all"
     category: semiconductor
 
   - name: "The Robot Report"
@@ -130,13 +404,22 @@ rss_feeds:
     url: "https://venturebeat.com/category/ai/feed/"
     category: ai
 
-  - name: "IEEE Spectrum"
-    url: "https://spectrum.ieee.org/feeds/feed.rss"
+  - name: "MIT Technology Review"
+    url: "https://www.technologyreview.com/feed/"
+    category: ai
+
+  - name: "Wired - Science & Tech"
+    url: "https://www.wired.com/feed/category/science/latest/rss"
+    category: ai
+
+  - name: "TechInsights Blog"
+    url: "https://news.google.com/rss/search?q=TechInsights+semiconductor+automotive+analysis+teardown&hl=en&gl=US&ceid=US:en"
     category: semiconductor
 
-  - name: "AnandTech"
-    url: "https://www.anandtech.com/rss/"
-    category: semiconductor
+
+  # ════════════════════════════════════════════════════════════
+  # 8. 한국 전문 미디어
+  # ════════════════════════════════════════════════════════════
 
   - name: "전자신문 (ETNews)"
     url: "https://rss.etnews.com/Section901.xml"
@@ -145,5 +428,14 @@ rss_feeds:
   - name: "ZDNet Korea"
     url: "https://www.zdnet.co.kr/rss/news/all_news_rss.xml"
     category: korea
+
+  - name: "Google News KR - 삼성 SK하이닉스 반도체"
+    url: "https://news.google.com/rss/search?q=%EC%82%BC%EC%84%B1+%EB%B0%98%EB%8F%84%EC%B2%B4+OR+%22SK%ED%95%98%EC%9D%B4%EB%8B%89%EC%8A%A4%22+HBM+%EB%A9%94%EB%AA%A8%EB%A6%AC&hl=ko&gl=KR&ceid=KR:ko"
+    category: korea
+
+  - name: "Google News KR - 실적발표 반도체"
+    url: "https://news.google.com/rss/search?q=%EC%8B%A4%EC%A0%81%EB%B0%9C%ED%91%9C+%EB%B0%98%EB%8F%84%EC%B2%B4+AI+%EB%A9%94%EB%AA%A8%EB%A6%AC&hl=ko&gl=KR&ceid=KR:ko"
+    category: korea
+
 
 scrape_sites: []
