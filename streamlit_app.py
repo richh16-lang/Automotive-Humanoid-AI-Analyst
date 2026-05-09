@@ -466,6 +466,122 @@ def render_analysis_sections(analysis: dict) -> None:
                 )
 
 
+def render_strategy_dashboard(analysis: dict) -> None:
+    """임원 보고용 전략 현황판 — 메트릭 / 핵심 인사이트 / 분야별 차트 / 퀵링크."""
+    import re
+    articles = analysis.get("articles", [])
+    sections = analysis.get("sections", {})
+    last_run = st.session_state.get("last_run", "-")
+
+    # ── Last Updated 바 ────────────────────────────────────────────────────────
+    st.markdown(
+        f"<div style='text-align:right;color:#546E7A;font-size:11px;"
+        f"margin-bottom:6px'>🕐 Last Updated: <strong style='color:#00B4D8'>"
+        f"{last_run}</strong></div>",
+        unsafe_allow_html=True,
+    )
+
+    # ── 1. Metric Section ──────────────────────────────────────────────────────
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("📰 수집 기사", f"{analysis.get('article_count', 0)}건")
+    m2.metric("🧠 분석 기사", f"{analysis.get('synthesis_count', analysis.get('article_count',0))}건")
+    kws = analysis.get("keywords_found", [])
+    m3.metric("🏷 매칭 키워드", f"{len(kws)}개")
+    # 경쟁사 업데이트: company_news / earnings 카테고리 기사 수
+    comp_count = sum(1 for a in articles
+                     if getattr(a, "category", "") in ("company_news", "earnings"))
+    m4.metric("🏢 경쟁사 업데이트", f"{comp_count}건")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── 2. Top 3 핵심 전략 인사이트 ───────────────────────────────────────────
+    insight_title = next((t for t in sections if "핵심 요약" in t or "요약" in t), None)
+    if insight_title:
+        raw_insights = sections[insight_title]
+        # 불릿 항목 추출
+        bullets = [l.strip().lstrip("-•▸* ").strip()
+                   for l in raw_insights.split("\n")
+                   if l.strip().startswith(("-", "•", "▸", "*", "1", "2", "3"))]
+        top3 = bullets[:3]
+    else:
+        top3 = []
+
+    st.markdown(
+        "<div style='background:linear-gradient(135deg,#0A1F3A,#162133);"
+        "border:1px solid #00B4D8;border-radius:10px;padding:18px 22px;margin-bottom:16px'>"
+        "<div style='color:#00E5FF;font-size:14px;font-weight:800;margin-bottom:12px'>"
+        "⚡ 오늘의 3대 핵심 전략 인사이트</div>",
+        unsafe_allow_html=True,
+    )
+    if top3:
+        for idx, insight in enumerate(top3, 1):
+            clean = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", insight)
+            clean = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", clean)
+            clean = clean[:200]
+            st.markdown(
+                f"<div style='display:flex;gap:12px;margin-bottom:10px;align-items:flex-start'>"
+                f"<span style='background:#00B4D8;color:#0D1B2A;font-size:11px;font-weight:800;"
+                f"padding:3px 8px;border-radius:12px;white-space:nowrap;margin-top:2px'>0{idx}</span>"
+                f"<span style='color:#CAE9FF;font-size:13.5px;line-height:1.7'>{clean}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+    else:
+        st.markdown(
+            "<p style='color:#546E7A;font-size:13px'>분석 실행 후 표시됩니다.</p>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── 3. Visual Matrix — 분야별 기사 건수 바 차트 ───────────────────────────
+    st.markdown("#### 📊 분야별 뉴스 분포")
+    CATEGORY_LABELS = {
+        "sdv":          "SDV/자율주행",
+        "automotive":   "자동차",
+        "humanoid":     "휴머노이드",
+        "ai":           "AI/알고리즘",
+        "semiconductor":"반도체",
+        "memory":       "메모리",
+        "storage":      "스토리지",
+        "research":     "논문",
+        "patent":       "특허",
+        "company_news": "기업동향",
+        "earnings":     "실적/IR",
+        "conference":   "컨퍼런스",
+        "crossref":     "크로스레퍼런스",
+        "korea":        "한국",
+    }
+    cat_counts: dict[str, int] = {}
+    for a in articles:
+        cat = getattr(a, "category", "기타")
+        label = CATEGORY_LABELS.get(cat, cat)
+        cat_counts[label] = cat_counts.get(label, 0) + 1
+
+    if cat_counts:
+        sorted_cats = sorted(cat_counts.items(), key=lambda x: x[1], reverse=True)
+        labels = [c[0] for c in sorted_cats]
+        values = [c[1] for c in sorted_cats]
+        import pandas as pd
+        df = pd.DataFrame({"건수": values}, index=labels)
+        st.bar_chart(df, color="#00B4D8", height=220)
+    else:
+        st.caption("기사 수집 후 표시됩니다.")
+
+    # ── 4. Quick Links — 출처 하이퍼링크 버튼 ────────────────────────────────
+    source_urls = analysis.get("source_urls", [])
+    if source_urls:
+        st.markdown("#### 🔗 주요 출처 바로가기")
+        # URL에서 도메인 추출해서 버튼 레이블로 사용
+        cols = st.columns(4)
+        for i, url in enumerate(source_urls[:12]):
+            try:
+                from urllib.parse import urlparse
+                domain = urlparse(url).netloc.replace("www.", "")[:22]
+            except Exception:
+                domain = f"출처 {i+1}"
+            cols[i % 4].link_button(f"↗ {domain}", url, use_container_width=True)
+
+
 def render_download_buttons(analysis: dict) -> None:
     """Word + Markdown 다운로드 버튼."""
     st.markdown("#### 📥 보고서 다운로드")
@@ -658,6 +774,7 @@ def run_pipeline(cfg: dict) -> dict | None:
                 research_meta=research_meta,
             )
             provider = analysis_result.get("provider", "-")
+            analysis_result["articles"] = articles   # ← 수집 기사 탭 표시용
             _append_log(f"합성 완료: {provider}", "ok")
             llm_placeholder.success(f"✅ {provider} 합성 완료")
             prog.progress(78, text=f"✅ {provider} 완료")
@@ -880,10 +997,8 @@ def main() -> None:
     if run_clicked:
         result = run_pipeline(cfg)
         if result:
-            result["articles"] = result.get("articles") or \
-                                  st.session_state.get("daily_analysis", {}).get("articles", [])
             st.session_state["daily_analysis"] = result
-            st.session_state["last_run"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            st.session_state["last_run"] = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
             st.rerun()
 
     # ── 탭 ────────────────────────────────────────────────────────────────────
@@ -906,9 +1021,14 @@ def main() -> None:
             )
         else:
             analysis = st.session_state["daily_analysis"]
-            render_meta_banner(analysis)
 
-            # 즉시 이메일 발송 버튼
+            # ── 전략 현황판 (상단) ─────────────────────────────────────────────
+            render_strategy_dashboard(analysis)
+
+            st.markdown("---")
+
+            # ── 메타 배너 + 다운로드 + 이메일 ─────────────────────────────────
+            render_meta_banner(analysis)
             col_dl, col_mail = st.columns([3, 1])
             with col_dl:
                 render_download_buttons(analysis)
@@ -933,6 +1053,9 @@ def main() -> None:
                         st.error("GMAIL_ADDRESS가 설정되지 않았습니다.")
 
             st.markdown("---")
+
+            # ── 10개 섹션 상세 분석 (하단) ────────────────────────────────────
+            st.markdown("### 📋 상세 분석 리포트")
             render_analysis_sections(analysis)
 
     # 수집 기사
