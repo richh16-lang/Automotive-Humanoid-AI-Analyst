@@ -1,5 +1,5 @@
 """
-Edge AI & Mobility Memory Intelligence Dashboard
+Inchang's Agent - Edge AI (Auto&Humanoid) 분석 Dashboard
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Streamlit 기반 실시간 전략 의사결정 지원 대시보드.
 5단계 파이프라인: 수집 → Groq 필터 → Gemini 조사 → LLM 합성 → 문서 생성/발송
@@ -35,7 +35,7 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout,
 # 페이지 설정
 # ══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(
-    page_title="Edge AI & Mobility Memory Intelligence",
+    page_title="Inchang's Agent - Edge AI (Auto&Humanoid) 분석",
     page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -252,8 +252,8 @@ def render_sidebar() -> dict:
             "<div style='text-align:center;padding:12px 0 6px'>"
             "<span style='font-size:24px'>🔬</span><br>"
             "<span style='color:#00B4D8;font-weight:800;font-size:15px'>"
-            "Edge AI & Memory Intel</span><br>"
-            "<span style='color:#546E7A;font-size:10px'>Mobility Silicon Intelligence</span>"
+            "Inchang's Agent</span><br>"
+            "<span style='color:#546E7A;font-size:10px'>Edge AI (Auto&Humanoid) 분석</span>"
             "</div>",
             unsafe_allow_html=True,
         )
