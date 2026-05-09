@@ -35,6 +35,9 @@ class Article:
     summary: str = ""
     full_text: str = ""
     matched_keywords: list[str] = field(default_factory=list)
+    # Groq 필터링 단계에서 채워지는 필드
+    groq_score: int = 0
+    groq_reason: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -44,8 +47,10 @@ class Article:
             "category": self.category,
             "published": self.published.isoformat() if self.published else None,
             "summary": self.summary,
-            "full_text": self.full_text[:3000],  # Claude 전송 시 크기 제한
+            "full_text": self.full_text[:4000],   # 4000자로 확장 (Arxiv 논문 대응)
             "matched_keywords": self.matched_keywords,
+            "groq_score": self.groq_score,
+            "groq_reason": self.groq_reason,
         }
 
 

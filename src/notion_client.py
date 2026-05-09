@@ -71,37 +71,157 @@ def _safe_kw_list(keywords: list) -> list[dict]:
     return result
 
 
-def _build_blocks(analysis: dict) -> list[dict]:
-    """분석 결과 dict → Notion 블록 목록."""
-    blocks: list[dict] = []
+def _image_block(url: str) -> dict:
+    """외부 URL 이미지 블록 (QuickChart.io 등)."""
+    return {
+        "object": "block",
+        "type": "image",
+        "image": {"type": "external", "external": {"url": url}},
+    }
 
-    # ── 메타 정보 callout ─────────────────────────────────────
+
+def _table_block(rows: list[list[str]], has_header: bool = True) -> dict:
+    """Notion 테이블 블록 생성."""
+    width = max(len(r) for r in rows) if rows else 2
+    children = []
+    for row in rows:
+        cells = []
+        for cell_text in row:
+            cells.append([{"type": "text", "text": {"content": str(cell_text)[:2000]}}])
+        # 열 수 맞추기
+        while len(cells) < width:
+            cells.append([{"type": "text", "text": {"content": ""}}])
+        children.append({
+            "object": "block",
+            "type": "table_row",
+            "table_row": {"cells": cells},
+        })
+    return {
+        "object": "block",
+        "type": "table",
+        "table": {
+            "table_width":      width,
+            "has_column_header": has_header,
+            "has_row_header":    False,
+            "children":          children,
+        },
+    }
+
+
+def _bullet_block(text: str) -> dict:
+    return {
+        "object": "block",
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {"rich_text": _rich_text(text[:2000])},
+    }
+
+
+def _build_blocks(analysis: dict) -> list[dict]:
+    """분석 결과 dict → Notion 블록 목록 (이미지·테이블 포함)."""
+    from .chart_generator import (
+        keyword_chart_url,
+        source_chart_url,
+        workload_chart_url,
+    )
+
+    blocks: list[dict] = []
     provider = analysis.get("provider") or analysis.get("model", "-")
+    attribution = analysis.get("model_attribution", provider)
+    keywords = analysis.get("keywords_found", [])
+    sources  = analysis.get("sources", [])
+
+    # ── 메타 callout ──────────────────────────────────────────
     meta = (
         f"📅 날짜: {analysis.get('date', '-')}  |  "
-        f"🤖 분석 엔진: {provider}  |  "
+        f"🤖 AI: {attribution}  |  "
         f"📰 수집 기사: {analysis.get('article_count', 0)}건\n"
-        f"🏷 키워드: {', '.join(analysis.get('keywords_found', []))}\n"
-        f"📡 출처: {', '.join(analysis.get('sources', []))}"
+        f"🏷 키워드: {', '.join(keywords[:10])}\n"
+        f"📡 출처: {', '.join(sources[:8])}"
     )
     blocks.append(_callout_block(meta, "📊"))
+    blocks.append(_divider_block())
+
+    # ── 주요 지표 테이블 ──────────────────────────────────────
+    blocks.append(_callout_block("📈 주요 분석 지표", "📈"))
+    metric_rows = [
+        ["항목",      "내용"],
+        ["분석 일자",  analysis.get("date", "-")],
+        ["수집 기사",  f"{analysis.get('article_count', 0)}건"],
+        ["핵심 키워드", ", ".join(keywords[:8])],
+        ["데이터 출처", ", ".join(sources[:6])],
+        ["AI 기여",    attribution],
+    ]
+    blocks.append(_table_block(metric_rows, has_header=True))
+    blocks.append(_divider_block())
+
+    # ── 키워드 차트 이미지 ────────────────────────────────────
+    kw_url = keyword_chart_url(keywords)
+    if kw_url:
+        blocks.append(_callout_block("핵심 키워드 우선순위", "🔑"))
+        blocks.append(_image_block(kw_url))
+
+    # ── 출처 분포 차트 이미지 ─────────────────────────────────
+    src_url = source_chart_url(sources)
+    if src_url:
+        blocks.append(_callout_block("데이터 출처 분포", "📡"))
+        blocks.append(_image_block(src_url))
+
     blocks.append(_divider_block())
 
     # ── 10개 섹션 ─────────────────────────────────────────────
     sections: dict = analysis.get("sections", {})
     if sections:
-        for title, content in sections.items():
+        for idx, (title, content) in enumerate(sections.items()):
             if title.strip():
                 blocks.append(_heading_block(title))
+
+            # 스토리지 워크로드 섹션에 차트 추가
+            if "워크로드" in title or "Workload" in title or "스토리지" in title:
+                wl_url = workload_chart_url()
+                if wl_url:
+                    blocks.append(_image_block(wl_url))
+
             if content.strip():
-                blocks.extend(_paragraph_blocks(content))
+                # 긴 섹션은 bullet 처리
+                bullets = _parse_bullets(content)
+                if bullets:
+                    for b in bullets:
+                        blocks.append(_bullet_block(b))
+                else:
+                    blocks.extend(_paragraph_blocks(content))
+
+            blocks.append(_divider_block())
     else:
         # 섹션 파싱 실패 → raw 전체 삽입
         raw = analysis.get("raw", "")
         logger.warning("섹션 파싱 결과 없음, raw 텍스트 삽입 (%d자)", len(raw))
         blocks.extend(_paragraph_blocks(raw))
 
+    # ── 출처 URL 목록 ─────────────────────────────────────────
+    source_urls = analysis.get("source_urls", [])
+    if source_urls:
+        blocks.append(_heading_block("📚 참조 URL"))
+        for url in source_urls[:20]:
+            blocks.append(_bullet_block(url))
+
     return blocks
+
+
+def _parse_bullets(content: str) -> list[str]:
+    """섹션 내용에서 불릿 항목 추출."""
+    import re
+    lines = []
+    for raw in content.split("\n"):
+        line = raw.strip()
+        # - 또는 • 로 시작하는 줄, 또는 비어있지 않은 짧은 문장
+        if line.startswith(("-", "•", "·", "▪", "▸", "*")):
+            cleaned = line.lstrip("-•·▪▸*").strip()
+            # 마크다운 링크 제거
+            cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
+            cleaned = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", cleaned)
+            if cleaned:
+                lines.append(cleaned[:1900])
+    return lines
 
 
 def _get_title_prop_name(client: Client, db_id: str) -> str:
@@ -227,7 +347,7 @@ def save_daily_to_notion(analysis: dict) -> str:
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     if analysis.get("date"):
         date_str = analysis["date"]
-    title    = f"[Daily] {date_str} Automotive/AI Semiconductor 동향"
+    title    = f"[Daily] {date_str} AI/Semiconductor News — Automotive/Humanoid/Storage"
     blocks   = _build_blocks(analysis)
 
     logger.info("Notion 페이지 생성 중 (블록 %d개)...", len(blocks))
@@ -259,7 +379,7 @@ def save_weekly_to_notion(analysis: dict, week_label: str) -> str:
 
     client   = _get_client()
     today    = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    title    = f"[Weekly] {week_label} Automotive/AI Semiconductor 주간 보고서"
+    title    = f"[Weekly] {week_label} AI/Semiconductor Intelligence Report"
     blocks   = _build_blocks(analysis)
 
     page     = _create_page_safe(client, db_id, title, analysis,

@@ -111,15 +111,17 @@ def filter_and_rank(articles: list, top_n: int = 30, min_score: int = 4) -> tupl
         meta["scores"] = scores
         meta["used_groq"] = True
 
-        # 필터링 + 정렬
+        # 필터링 + 정렬 + Article 객체에 점수 직접 부착
         scored = []
         for i, a in enumerate(articles):
             info = score_map.get(i, {"score": 5, "reason": "no score"})
-            scored.append((info["score"], i, a, info.get("reason", "")))
+            a.groq_score  = int(info["score"])
+            a.groq_reason = str(info.get("reason", ""))
+            scored.append((info["score"], i, a))
 
         scored.sort(key=lambda x: x[0], reverse=True)
 
-        filtered = [a for score, _, a, _ in scored if score >= min_score][:top_n]
+        filtered = [a for score, _, a in scored if score >= min_score][:top_n]
         meta["filtered_count"] = len(filtered)
 
         removed = len(articles) - len(filtered)
@@ -127,8 +129,8 @@ def filter_and_rank(articles: list, top_n: int = 30, min_score: int = 4) -> tupl
                     len(articles), len(filtered), removed, min_score)
 
         # 점수 로그 (상위 10개)
-        for score, idx, a, reason in scored[:10]:
-            logger.debug("  [%d점] %s — %s", score, a.title[:60], reason[:50])
+        for score, idx, a in scored[:10]:
+            logger.debug("  [%d점] %s — %s", score, a.title[:60], a.groq_reason[:50])
 
         return filtered, meta
 

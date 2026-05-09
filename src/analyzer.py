@@ -51,6 +51,9 @@ SYSTEM_PROMPT = """당신은 Automotive/AI 반도체 및 스토리지 분야의 
 # ══════════════════════════════════════════════════════════════════════════════
 
 ANALYSIS_TEMPLATE = """\
+# AI/Semiconductor Daily News
+## Automotive/Humanoid and Storage Intelligence
+
 수집된 뉴스 기사들을 분석하여 반도체 기획자용 전략 의사결정 보고서를 작성하세요.
 반드시 정확히 10개 섹션(## 1. ~ ## 10.)을 포함해야 합니다.
 
@@ -166,16 +169,43 @@ WEEKLY_TEMPLATE = """\
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _format_articles(articles: list[Article]) -> str:
+    """
+    기사 목록을 LLM 프롬프트용 텍스트로 변환.
+    - full_text + summary 결합: Gemini 배경 조사 내용이 summary에 있어도 반드시 포함
+    - Groq 점수/이유 포함: 왜 이 기사가 중요한지 합성 LLM에 전달
+    - 최대 4000자: Arxiv 논문 등 긴 본문 대응
+    """
     parts = []
     for i, a in enumerate(articles, 1):
-        pub  = a.published.strftime("%Y-%m-%d %H:%M UTC") if a.published else "날짜 미상"
-        body = a.full_text or a.summary or "(본문 없음)"
+        pub = a.published.strftime("%Y-%m-%d %H:%M UTC") if a.published else "날짜 미상"
+
+        # ── Groq 중요도 점수 표기 ────────────────────────────
+        if a.groq_score > 0:
+            score_line = f"[중요도: {a.groq_score}/10 | Groq 평가: {a.groq_reason}]\n"
+        else:
+            score_line = ""
+
+        # ── 본문 + 배경 조사 결합 (핵심 수정) ────────────────
+        # full_text: 원본 기사 본문 (최대 3000자)
+        # summary: Gemini 배경 조사가 추가된 내용 (최대 1000자)
+        # → 두 가지를 결합하여 LLM이 본문과 배경 지식을 동시에 참조
+        body_segments = []
+        if a.full_text:
+            body_segments.append(a.full_text[:3000])
+        if a.summary:
+            # summary가 full_text와 완전히 같은 내용일 경우 중복 방지
+            if a.summary[:100] not in (a.full_text or ""):
+                body_segments.append(f"[요약/배경]\n{a.summary[:1000]}")
+        body = "\n\n".join(body_segments) if body_segments else "(본문 없음)"
+        body = body[:4000]   # 최대 4000자 (이중 절삭 제거)
+
         parts.append(
             f"[{i}] {a.source} | {pub}\n"
+            f"{score_line}"
             f"제목: {a.title}\n"
             f"URL: {a.url}\n"
             f"키워드: {', '.join(a.matched_keywords)}\n"
-            f"내용: {body[:2000]}\n"
+            f"내용:\n{body}\n"
         )
     return "\n---\n".join(parts)
 

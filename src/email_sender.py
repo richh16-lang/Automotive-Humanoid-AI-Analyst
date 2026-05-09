@@ -96,15 +96,18 @@ def _build_html(analysis: dict, report_type: str = "Daily") -> str:
   <div style="max-width:720px;margin:0 auto;background:#162133;border-radius:8px;overflow:hidden;">
     <div style="background:{header_gradient};padding:28px 28px 20px;">
       <h1 style="color:#fff;margin:0;font-size:18px;font-family:sans-serif;">
-        [{report_type}] Automotive / AI Semiconductor Brief
+        [{report_type}] AI/Semiconductor Daily News
       </h1>
+      <p style="color:rgba(255,255,255,.75);margin:3px 0 0;font-size:12px;font-family:sans-serif;">
+        Automotive/Humanoid and Storage Intelligence
+      </p>
       <p style="color:rgba(255,255,255,.8);margin:6px 0 0;font-size:12px;font-family:sans-serif;">
         {subtitle} &nbsp;|&nbsp; 기사 {art_count}건 &nbsp;|&nbsp; 키워드: {keywords}
       </p>
       <p style="color:rgba(255,255,255,.65);margin:3px 0 0;font-size:11px;font-family:sans-serif;">
         🤖 AI 기여: {analysis.get("model_attribution", provider)}
       </p>
-      {'<p style="color:rgba(255,255,255,.6);margin:3px 0 0;font-size:11px;font-family:sans-serif;">※ PPT 보고서가 첨부되어 있습니다.</p>' if report_type == "Daily" else ""}
+      {'<p style="color:rgba(255,255,255,.6);margin:3px 0 0;font-size:11px;font-family:sans-serif;">※ Word 보고서(.docx)와 Markdown(.md) 파일이 첨부되어 있습니다.</p>' if report_type == "Daily" else '<p style="color:rgba(255,255,255,.6);margin:3px 0 0;font-size:11px;font-family:sans-serif;">※ Word 주간보고서(.docx)와 Markdown(.md) 파일이 첨부되어 있습니다.</p>'}
     </div>
     <div style="padding:28px;">{sections_html}{notion_btn}</div>
     <div style="background:#0D1B2A;padding:14px 28px;text-align:center;
@@ -150,18 +153,20 @@ def _send(subject: str, html_body: str, attachments: list[str] | None = None) ->
 
 def send_daily_email(
     analysis: dict,
-    ppt_path: str | None = None,
+    word_path: str | None = None,
+    md_path:   str | None = None,
     extra_attachments: list[str] | None = None,
 ) -> None:
     date_str    = analysis.get("date", "")
     attribution = analysis.get("model_attribution", analysis.get("provider", "-"))
-    subject     = f"[Daily Brief] {date_str} Automotive/AI Semiconductor 동향 [{attribution[:30]}]"
+    subject     = f"[Daily] {date_str} AI/Semiconductor News — Automotive/Humanoid/Storage [{attribution[:25]}]"
     html        = _build_html(analysis, "Daily")
 
-    # 첨부 파일: PPT + Markdown(NotebookLM용) + 기타
+    # 첨부: Word(보고서) + Markdown(NotebookLM용)
     attachments: list[str] = []
-    if ppt_path:
-        attachments.append(ppt_path)
+    for p in [word_path, md_path]:
+        if p and p not in attachments:
+            attachments.append(p)
     for p in (extra_attachments or []):
         if p and p not in attachments:
             attachments.append(p)
@@ -172,16 +177,18 @@ def send_daily_email(
 def send_weekly_email(
     analysis: dict,
     week_label: str,
-    ppt_path: str | None = None,
+    word_path: str | None = None,
+    md_path:   str | None = None,
     extra_attachments: list[str] | None = None,
 ) -> None:
     analysis["week_label"] = week_label
-    subject = f"[Weekly] {week_label} Semiconductor Strategy Report"
+    subject = f"[Weekly] {week_label} AI/Semiconductor Intelligence Report"
     html    = _build_html(analysis, "Weekly")
 
     attachments: list[str] = []
-    if ppt_path:
-        attachments.append(ppt_path)
+    for p in [word_path, md_path]:
+        if p and p not in attachments:
+            attachments.append(p)
     for p in (extra_attachments or []):
         if p and p not in attachments:
             attachments.append(p)

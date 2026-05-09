@@ -18,11 +18,12 @@ def run_weekly_pipeline() -> None:
     from . import analyzer as _analyzer
     from . import notion_client as _notion
     from . import email_sender as _email
-    from .ppt_generator    import generate_ppt
+    from .word_exporter     import generate_word
     from .markdown_exporter import generate_markdown
 
-    ppt_output = os.environ.get("PPT_OUTPUT_DIR", "/tmp")
-    md_output  = os.environ.get("MD_OUTPUT_DIR",  ppt_output)
+    output_dir = os.environ.get("PPT_OUTPUT_DIR",
+                 os.environ.get("OUTPUT_DIR", "/tmp"))
+    md_output  = os.environ.get("MD_OUTPUT_DIR", output_dir)
     week_label = get_week_label()
     logger.info("=== Weekly 보고서 시작: %s ===", week_label)
 
@@ -46,24 +47,27 @@ def run_weekly_pipeline() -> None:
     except Exception as e:
         logger.warning("Weekly Markdown 생성 실패: %s", e)
 
-    # ── PPT 생성 ─────────────────────────────────────────────
-    ppt_path = None
+    # ── Word 보고서 생성 (차트 포함) ──────────────────────────
+    word_path = None
     try:
-        ppt_path = generate_ppt(weekly, output_dir=ppt_output)
-        logger.info("Weekly PPT 생성: %s", ppt_path)
+        word_path = generate_word(weekly, output_dir=output_dir)
+        logger.info("Weekly Word 생성: %s", word_path)
     except Exception as e:
-        logger.warning("Weekly PPT 생성 실패: %s", e)
+        logger.warning("Weekly Word 생성 실패: %s", e)
 
-    # ── Notion 저장 ───────────────────────────────────────────
+    # ── Notion 저장 (이미지·테이블 포함) ─────────────────────
     try:
         notion_url = _notion.save_weekly_to_notion(weekly, week_label)
         weekly["notion_url"] = notion_url
     except Exception as e:
         logger.warning("Weekly Notion 저장 실패: %s", e)
 
-    # ── 이메일 발송 (PPT + MD 첨부) ──────────────────────────
-    attachments = [p for p in [ppt_path, md_path] if p]
-    _email.send_weekly_email(weekly, week_label, ppt_path=ppt_path,
-                              extra_attachments=attachments)
+    # ── 이메일 발송 (Word + MD 첨부) ─────────────────────────
+    _email.send_weekly_email(
+        weekly,
+        week_label,
+        word_path=word_path,
+        md_path=md_path,
+    )
 
     logger.info("=== Weekly 보고서 완료: %s ===", week_label)

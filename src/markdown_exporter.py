@@ -45,7 +45,7 @@ def generate_markdown(analysis: dict, output_dir: str = "/tmp") -> str:
     # ── YAML 프론트매터 (NotebookLM 메타데이터용) ──────────────
     lines += [
         "---",
-        f"title: \"Automotive/AI Semiconductor Strategy Brief [{report_type}] {title_date}\"",
+        f"title: \"AI/Semiconductor Daily News [{report_type}] {title_date}\"",
         f"date: {date_str}",
         f"type: {report_type}",
         f"article_count: {art_count}",
@@ -58,8 +58,9 @@ def generate_markdown(analysis: dict, output_dir: str = "/tmp") -> str:
 
     # ── 문서 제목 ─────────────────────────────────────────────
     lines += [
-        f"# Automotive/AI Semiconductor Strategy Brief [{report_type}]",
-        f"## {title_date}",
+        f"# AI/Semiconductor Daily News [{report_type}]",
+        f"## Automotive/Humanoid and Storage Intelligence",
+        f"### {title_date}",
         "",
         "> **AI 기여 모델:** " + attribution,
         f"> **수집 기사:** {art_count}건 | **핵심 키워드:** {', '.join(keywords[:8])}",
