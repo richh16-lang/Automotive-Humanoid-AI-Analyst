@@ -99,8 +99,10 @@ def _build_html(analysis: dict, report_type: str = "Daily") -> str:
         [{report_type}] Automotive / AI Semiconductor Brief
       </h1>
       <p style="color:rgba(255,255,255,.8);margin:6px 0 0;font-size:12px;font-family:sans-serif;">
-        {subtitle} &nbsp;|&nbsp; 기사 {art_count}건 &nbsp;|&nbsp;
-        분석 엔진: {provider} &nbsp;|&nbsp; 키워드: {keywords}
+        {subtitle} &nbsp;|&nbsp; 기사 {art_count}건 &nbsp;|&nbsp; 키워드: {keywords}
+      </p>
+      <p style="color:rgba(255,255,255,.65);margin:3px 0 0;font-size:11px;font-family:sans-serif;">
+        🤖 AI 기여: {analysis.get("model_attribution", provider)}
       </p>
       {'<p style="color:rgba(255,255,255,.6);margin:3px 0 0;font-size:11px;font-family:sans-serif;">※ PPT 보고서가 첨부되어 있습니다.</p>' if report_type == "Daily" else ""}
     </div>
@@ -146,15 +148,42 @@ def _send(subject: str, html_body: str, attachments: list[str] | None = None) ->
     logger.info("이메일 발송 완료: %s → %s (첨부: %d개)", subject[:50], recipients, len(attachments or []))
 
 
-def send_daily_email(analysis: dict, ppt_path: str | None = None) -> None:
-    date_str = analysis.get("date", "")
-    subject  = f"[Daily Brief] {date_str} Automotive/AI Semiconductor 동향"
-    html     = _build_html(analysis, "Daily")
-    _send(subject, html, attachments=[ppt_path] if ppt_path else [])
+def send_daily_email(
+    analysis: dict,
+    ppt_path: str | None = None,
+    extra_attachments: list[str] | None = None,
+) -> None:
+    date_str    = analysis.get("date", "")
+    attribution = analysis.get("model_attribution", analysis.get("provider", "-"))
+    subject     = f"[Daily Brief] {date_str} Automotive/AI Semiconductor 동향 [{attribution[:30]}]"
+    html        = _build_html(analysis, "Daily")
+
+    # 첨부 파일: PPT + Markdown(NotebookLM용) + 기타
+    attachments: list[str] = []
+    if ppt_path:
+        attachments.append(ppt_path)
+    for p in (extra_attachments or []):
+        if p and p not in attachments:
+            attachments.append(p)
+
+    _send(subject, html, attachments=attachments)
 
 
-def send_weekly_email(analysis: dict, week_label: str, ppt_path: str | None = None) -> None:
+def send_weekly_email(
+    analysis: dict,
+    week_label: str,
+    ppt_path: str | None = None,
+    extra_attachments: list[str] | None = None,
+) -> None:
     analysis["week_label"] = week_label
     subject = f"[Weekly] {week_label} Semiconductor Strategy Report"
     html    = _build_html(analysis, "Weekly")
-    _send(subject, html, attachments=[ppt_path] if ppt_path else [])
+
+    attachments: list[str] = []
+    if ppt_path:
+        attachments.append(ppt_path)
+    for p in (extra_attachments or []):
+        if p and p not in attachments:
+            attachments.append(p)
+
+    _send(subject, html, attachments=attachments)

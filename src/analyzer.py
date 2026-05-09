@@ -1,108 +1,174 @@
-"""LLM 라우터를 통해 수집된 뉴스를 10가지 양식으로 분석합니다."""
+"""
+전략 의사결정 지원 시스템 — 분석 엔진.
+Groq 전처리 → Gemini 조사 → Claude/DeepSeek 앙상블 합성.
+"""
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .collector import Article
 from .llm_router import call_llm
 
 logger = logging.getLogger(__name__)
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 시스템 프롬프트 — 데이터 이동 효율 & 메모리 병목 관점 강화
+# ══════════════════════════════════════════════════════════════════════════════
+
 SYSTEM_PROMPT = """당신은 Automotive/AI 반도체 및 스토리지 분야의 수석 전략 분석가입니다.
-SDV, 자율주행, 휴머노이드 로봇, AI 반도체, 메모리/스토리지 시장을 전문으로 합니다.
-수집된 뉴스를 분석하여 아래 10개 섹션으로 정확하고 날카로운 인사이트 보고서를 작성하세요.
-- 각 섹션은 ## 헤딩으로 구분하세요.
-- 핵심만 간결하게 서술하되, 구체적 수치와 기업명을 포함하세요.
-- 불확실한 내용은 추정임을 명시하고, 근거 없는 내용은 포함하지 마세요.
-- 한국어로 작성하세요."""
+전문 영역: SDV, 자율주행, 휴머노이드 로봇, AI 반도체, 메모리/스토리지 전략 기획.
+
+## 핵심 분석 관점 (모든 섹션에 적용)
+
+### 1. 데이터 이동 효율 (Data Movement Efficiency)
+- AI 추론 시 데이터가 이동하는 경로 (Storage → DRAM → Cache → Compute)
+- 각 계층 간 대역폭 병목 지점 식별
+- PCIe Gen6, CXL, NVMe 등 인터페이스가 데이터 이동에 미치는 영향
+
+### 2. 메모리 병목 (Memory Bottleneck)
+- LLM/AI 모델의 KV Cache 크기와 메모리 요구량 변화
+- Compute-to-Memory 비율 불균형 문제
+- HBM vs LPDDR5x vs UFS 계층별 역할 분담
+
+### 3. Storage Workload 수치적 추론 (필수)
+- **Read/Write Ratio**: AI 추론(KV Cache Read 집약적) vs 센서 로깅(Write 집약적) 비율 추정
+- **WAF (Write Amplification Factor)**: 차량 온도 변화(-40°C~+125°C) + Small Random Write가
+  UFS/SSD 수명에 미치는 영향. 예: WAF 2.0 → 실효 TBW 50% 감소
+- **TBW 영향**: 워크로드 특성이 제품 수명에 미치는 영향 수치화
+- **Capacity Planning**: End-to-End 모델(FSD v12 등) 전환 시 로컬 스토리지 요구량 예측
+
+## 출력 규칙
+- 각 섹션: ## 헤딩으로 구분
+- 출처 URL 반드시 포함: [출처: URL] 또는 [링크] 형태
+- 추론/추정 내용은 명시: (추정), (시장 추정치 기준)
+- 분석에 기여한 AI 모델 표기:
+  [분석: {synthesis_model} | 전처리: {filter_model} | 조사: {research_model}]
+- 수치 없는 Storage Workload 분석은 불완전한 것으로 간주
+- 한국어로 작성"""
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 10섹션 분석 템플릿
+# ══════════════════════════════════════════════════════════════════════════════
 
 ANALYSIS_TEMPLATE = """\
-아래 뉴스 기사들을 분석하여 정확히 10개 섹션으로 보고서를 작성하세요.
+수집된 뉴스 기사들을 분석하여 반도체 기획자용 전략 의사결정 보고서를 작성하세요.
+반드시 정확히 10개 섹션(## 1. ~ ## 10.)을 포함해야 합니다.
 
 ## 1. 핵심 요약
-오늘 가장 중요한 뉴스 3가지를 각각 1줄로 요약하세요.
-각 항목 끝에 반드시 출처 URL을 [링크] 형태로 표기하세요.
-기술적 관점과 비즈니스 관점을 모두 포함하세요.
+오늘 가장 중요한 뉴스 3가지를 각각 1-2줄로 요약하세요.
+- 각 항목 끝에 반드시 출처 URL 표기: [출처: URL]
+- 기술적 관점과 비즈니스 관점을 모두 포함
+- 데이터 이동 효율 또는 메모리 병목과 관련된 시사점 우선 선정
 
-## 2. 기술적 의미
-기존 기술(Legacy) 대비 무엇이 달라졌는지 분석하세요.
-- 기술적 진보 수준 (점진적 개선인가 / 패러다임 전환인가)
-- 핵심 기술 변화 포인트 (아키텍처, 인터페이스, 전력, 성능)
+## 2. 기술적 의미 분석
+기존 기술(Legacy) 대비 변화점을 분석하세요.
+- 기술적 진보 수준: 점진적 개선 vs 패러다임 전환 여부 판단
+- 핵심 변화 포인트: 아키텍처, 인터페이스(PCIe Gen6/CXL), 전력, 성능
+- 데이터 이동 경로 변화 및 대역폭 영향
 - 실현 가능성 및 양산 시점 예측
 
-## 3. AI Agent 아키텍처
-On-device AI와 Cloud AI 에이전트 구조의 변화를 추적하세요.
-- On-device 처리 vs Cloud 오프로드 비율 변화
+## 3. AI Agent 아키텍처 영향
+On-device AI와 Cloud AI 구조 변화를 추적하세요.
+- On-device 처리 vs Cloud 오프로드 비율 변화 (추정치 포함)
+- KV Cache 요구량 변화: 컨텍스트 길이 증가가 스토리지에 미치는 영향
+  (예: 컨텍스트 2배 → KV Cache 스토리지 요구량 X배 증가 추정)
 - Agentic AI / Physical AI 관점의 아키텍처 시사점
-- KV Cache, 컨텍스트 길이, 추론 방식의 변화
+- Edge 추론 vs 클라우드 오프로드 결정 기준 변화
 
 ## 4. 비즈니스 영향
-- 관련 기업의 시장 점유율 변화 가능성
+- 관련 기업 시장 점유율 변화 가능성 (기업명 명시)
 - 신규 비즈니스 모델(Monetization) 기회
 - 단기 수혜 기업 vs 위협받는 기업 구분
+- 국내 메모리·스토리지 업체(삼성, SK하이닉스, Kioxia 등) 포지션 변화
 
 ## 5. Ecosystem 영향
-- OEM(완성차), Tier 1(보쉬/콘티넨탈 등), SoC 설계사, ODM 간 주도권 변화
+- OEM(완성차), Tier 1(보쉬/콘티넨탈), SoC 설계사, ODM 간 주도권 변화
 - 새로운 협력/경쟁 구도 형성 여부
-- 표준화(AUTOSAR, SOAFEE 등) 및 플랫폼 잠금(Lock-in) 동향
+- 표준화(AUTOSAR, SOAFEE, NVMe, UFS) 및 플랫폼 Lock-in 동향
+- Zonal Architecture 전환이 스토리지 아키텍처에 미치는 영향
 
 ## 6. 향후 전망
-- 단기(1년): 주요 제품 출시, 계약, 인증 일정
+- 단기(6개월~1년): 주요 제품 출시, 계약, 인증 일정
 - 중장기(3~5년): 시장 파급력 및 기술 성숙도 예측
-- 불확실성 요인(규제, 경쟁, 기술 장벽)
+- 불확실성 요인: 규제(UN-R155, ISO 26262), 공급망, 기술 장벽
 
-## 7. 메모리/스토리지 영향
-- HBM, LPDDR5x, UFS, SSD 등 부품별 수요 변화
-- 용량, 대역폭, 지연시간(Latency) 요구사항 변화
-- 삼성전자, SK하이닉스, 마이크론 등 메모리 업체 영향
+## 7. 메모리·스토리지 시장 영향
+- HBM, LPDDR5x, UFS 4.0, PCIe Gen6 NVMe SSD 수요 변화
+- 용량·대역폭·지연시간(Latency) 요구사항 변화 (수치 포함)
+- 삼성전자, SK하이닉스, Micron, Kioxia 등 업체별 영향
+- NAND vs DRAM 투자 우선순위 변화 시사점
 
-## 8. 스토리지 Workload
-- AI 모델 로딩, 컨텍스트 저장, 추론 캐시 관점의 읽기/쓰기 패턴
-- 데이터 로깅(블랙박스, 사고분석) 워크로드 특성
-- 읽기/쓰기 빈도 변화 및 SSD/UFS 수명(TBW) 영향
-- Sequential vs Random I/O 비율 추정
+## 8. 스토리지 Workload 심층 분석
+**반드시 수치적 추론을 포함하세요.**
 
-## 9. 지역별 영향
-- 미국: 설계·IP 관점 (NVIDIA, Qualcomm, 인텔 파운드리)
-- 중국: 공급망·자체개발 관점 (화웨이, BYD, CXMT)
-- 한국: 메모리·스토리지 관점 (삼성, SK하이닉스)
-- 유럽: 규제·안전 관점 (UN-R155, ISO 26262, CSMS)
+**Read/Write Ratio 분석:**
+- AI 추론(KV Cache): 예상 Read:Write 비율 추정 (예: 8:1 ~ 12:1)
+- 센서 데이터 로깅(카메라/LiDAR): 연속 Write 부하 추정 (예: 초당 XX MB/s)
+- ADAS 이벤트 로깅 vs 정상 주행 로깅의 워크로드 차이
 
-## 10. Why Now?
-왜 지금 이 뉴스가 중요한지 전략적 시급성을 평가하세요.
-- 타이밍의 의미 (시장 사이클, 경쟁 압력, 규제 마감)
-- 지금 당장 주목해야 할 신호(Signal) vs 노이즈(Noise) 구분
-- 분석가 관점의 핵심 액션 아이템 1~2개
+**WAF (Write Amplification Factor) 영향:**
+- 차량 환경(-40°C~+125°C) + Small Random Write → WAF 증가 추정치
+- WAF 상승이 UFS/SSD TBW 수명에 미치는 영향 (예: WAF 2.0 → 실효 TBW 50% 감소)
+- 차량용 NAND 선정 기준 변화 (TLC vs QLC 비교)
+
+**Capacity Planning:**
+- 현재 아키텍처 vs End-to-End AI 전환 시 로컬 스토리지 요구량 변화
+- FSD v12 수준 E2E 모델: 필요 로컬 스토리지 최소 용량 예측
+- Sequential vs Random I/O 비율 추정 및 SSD 선택 기준
+
+## 9. 지역별 동향 분석
+- **미국**: 설계·IP 관점 (NVIDIA, Qualcomm, Mobileye, 인텔 파운드리)
+- **중국**: 공급망·자체개발 (화웨이, BYD, CXMT, YMTC의 차량용 NAND)
+- **한국**: 메모리·스토리지 (삼성, SK하이닉스의 UFS/SSD 차량 인증 현황)
+- **유럽**: 규제·안전 (UN-R155, ISO 26262, Functional Safety 요구사항)
+- **일본**: Kioxia, Renesas 등 소재·부품 관점
+
+## 10. Why Now? — 전략적 시급성
+왜 지금 이 뉴스가 중요한지 평가하세요.
+- 타이밍의 의미: 시장 사이클, 경쟁 압력, 규제 마감
+- Signal vs Noise 구분: 지금 당장 주목해야 할 신호
+- 분석가 관점 핵심 액션 아이템 2-3개 (구체적 기업/기술/시장 제시)
+- 다음 모니터링 포인트 (날짜/이벤트 기준)
 
 ---
-분석할 뉴스 기사 ({count}건):
+[AI 기여 모델]
+{model_attribution}
+
+분석 대상 뉴스 ({count}건):
 {articles_text}
 """
 
 WEEKLY_TEMPLATE = """\
-지난 한 주간 일별 보고서를 종합하여 Weekly 전략 보고서를 작성하세요.
+지난 한 주간 일별 보고서를 종합하여 반도체 기획자용 Weekly 전략 보고서를 작성하세요.
 
-## 1. 이번 주 핵심 테마
-## 2. 기술 트렌드 주간 요약
-## 3. AI Agent/Physical AI 동향
-## 4. 메모리·스토리지 시장 신호
-## 5. SDV/자율주행 주간 흐름
+## 1. 이번 주 핵심 테마 (Top 3)
+## 2. 기술 트렌드 주간 요약 (데이터 이동 효율/메모리 병목 관점)
+## 3. AI Agent/Physical AI 아키텍처 주간 동향
+## 4. 메모리·스토리지 시장 주간 신호 (WAF/TBW/KV Cache 관점)
+## 5. SDV/자율주행 주간 흐름 (Zonal Architecture 포함)
 ## 6. 휴머노이드·로봇 주간 동향
-## 7. Ecosystem 주도권 변화
-## 8. 지역별 주간 동향 (미국/중국/한국/유럽)
-## 9. 다음 주 Watch List (3개 이내)
-## 10. 주간 전략 결론 및 권고사항
+## 7. Ecosystem 주도권 변화 (OEM/Tier1/SoC/ODM)
+## 8. 지역별 주간 동향 (미국/중국/한국/유럽/일본)
+## 9. 다음 주 Watch List (3개 이내 — 모니터링 기업·기술·이벤트)
+## 10. 주간 전략 결론 및 권고사항 (액션 아이템 포함)
 
 ---
+[AI 기여 모델]
+{model_attribution}
+
 일별 보고서 ({count}개):
 {combined}
 """
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 내부 유틸
+# ══════════════════════════════════════════════════════════════════════════════
+
 def _format_articles(articles: list[Article]) -> str:
     parts = []
     for i, a in enumerate(articles, 1):
-        pub = a.published.strftime("%Y-%m-%d %H:%M UTC") if a.published else "날짜 미상"
+        pub  = a.published.strftime("%Y-%m-%d %H:%M UTC") if a.published else "날짜 미상"
         body = a.full_text or a.summary or "(본문 없음)"
         parts.append(
             f"[{i}] {a.source} | {pub}\n"
@@ -120,49 +186,102 @@ def _parse_sections(text: str) -> dict[str, str]:
     for i, m in enumerate(matches):
         title = m.group(1).strip()
         start = m.end()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        end   = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         sections[title] = text[start:end].strip()
     return sections
+
+
+def _build_model_attribution(filter_meta: dict, research_meta: dict,
+                              synthesis_provider: str) -> str:
+    """AI 기여 모델 표기 문자열 생성."""
+    parts = [f"합성/인사이트: {synthesis_provider}"]
+
+    if filter_meta.get("used_groq"):
+        groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+        parts.append(f"고속 필터링: Groq ({groq_model})")
+
+    if research_meta.get("used_gemini"):
+        parts.append(f"사실 조사: Gemini ({research_meta.get('model', 'gemini-2.0-flash')})")
+
+    return " | ".join(parts)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Public API
+# ══════════════════════════════════════════════════════════════════════════════
+
+import os
 
 
 def analyze_articles(
     articles: list[Article],
     date_str: str | None = None,
+    status_fn=None,
+    filter_meta: dict | None = None,
+    research_meta: dict | None = None,
 ) -> dict:
+    """
+    앙상블 분석 파이프라인.
+    Groq 필터링·Gemini 조사 메타데이터를 받아 AI 기여 모델을 표기합니다.
+    """
     if not articles:
         logger.warning("분석할 기사가 없습니다.")
         return {"error": "수집된 기사 없음", "raw": "", "date": date_str or ""}
 
-    date_str = date_str or datetime.utcnow().strftime("%Y-%m-%d")
+    filter_meta   = filter_meta   or {}
+    research_meta = research_meta or {}
+    date_str      = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     articles_text = _format_articles(articles)
+
+    # 분석 시작 전 임시 attribution (합성 provider는 call_llm 후 결정됨)
+    attribution_placeholder = (
+        "합성/인사이트: [분석 중...] | "
+        + ("고속 필터링: Groq | " if filter_meta.get("used_groq") else "")
+        + ("사실 조사: Gemini" if research_meta.get("used_gemini") else "")
+    ).rstrip(" |")
+
     user_content = ANALYSIS_TEMPLATE.format(
         count=len(articles),
         articles_text=articles_text,
+        model_attribution=attribution_placeholder,
     )
 
-    logger.info("LLM 분석 시작 (기사: %d건)", len(articles))
-    raw_text, provider = call_llm(SYSTEM_PROMPT, user_content)
+    logger.info("LLM 앙상블 분석 시작 (기사: %d건)", len(articles))
+    raw_text, provider = call_llm(SYSTEM_PROMPT, user_content, status_fn=status_fn)
     logger.info("분석 완료 (provider: %s)", provider)
+
+    # 최종 attribution 삽입
+    final_attribution = _build_model_attribution(filter_meta, research_meta, provider)
+    raw_text = raw_text.replace(attribution_placeholder, final_attribution)
 
     return {
         "date": date_str,
         "article_count": len(articles),
         "provider": provider,
+        "model_attribution": final_attribution,
+        "filter_meta": filter_meta,
+        "research_meta": research_meta,
         "raw": raw_text,
         "sections": _parse_sections(raw_text),
         "sources": list({a.source for a in articles}),
+        "source_urls": list({a.url for a in articles if a.url}),
         "keywords_found": list({kw for a in articles for kw in a.matched_keywords}),
     }
 
 
 def analyze_weekly(daily_analyses: list[dict]) -> dict:
+    """Weekly 보고서 생성."""
     combined = "\n\n===\n\n".join(
         f"[{d.get('date', 'N/A')}] (provider: {d.get('provider', '-')})\n{d.get('raw', '')}"
         for d in daily_analyses
     )
+
+    # Weekly attribution
+    attribution = "합성/인사이트: Claude (Weekly 종합) | 데이터 출처: Daily 보고서"
     user_content = WEEKLY_TEMPLATE.format(
         count=len(daily_analyses),
         combined=combined[:15000],
+        model_attribution=attribution,
     )
 
     logger.info("Weekly LLM 분석 시작 (일별 %d개)", len(daily_analyses))
@@ -175,4 +294,5 @@ def analyze_weekly(daily_analyses: list[dict]) -> dict:
         "sections": _parse_sections(raw_text),
         "daily_count": len(daily_analyses),
         "provider": provider,
+        "model_attribution": f"합성: {provider} | 데이터: Daily 보고서 {len(daily_analyses)}개",
     }
