@@ -171,35 +171,38 @@ WEEKLY_TEMPLATE = """\
 def _format_articles(articles: list[Article]) -> str:
     """
     기사 목록을 LLM 프롬프트용 텍스트로 변환.
-    - full_text + summary 결합: Gemini 배경 조사 내용이 summary에 있어도 반드시 포함
-    - Groq 점수/이유 포함: 왜 이 기사가 중요한지 합성 LLM에 전달
-    - 최대 4000자: Arxiv 논문 등 긴 본문 대응
+    - full_text + summary 결합: Gemini 배경 조사 내용도 반드시 포함
+    - Groq 점수/이유 포함: 합성 LLM에 중요도 전달
+    - 기사 수에 따라 본문 길이 자동 조절 (전체 토큰 예산 준수)
     """
+    # 기사 수에 따라 기사당 본문 자동 조절
+    n = max(len(articles), 1)
+    per_article_budget = min(MAX_ARTICLE_BODY_CHARS,
+                             MAX_TOTAL_ARTICLE_CHARS // n)
+
     parts = []
+    total_chars = 0
+
     for i, a in enumerate(articles, 1):
         pub = a.published.strftime("%Y-%m-%d %H:%M UTC") if a.published else "날짜 미상"
 
         # ── Groq 중요도 점수 표기 ────────────────────────────
-        if a.groq_score > 0:
-            score_line = f"[중요도: {a.groq_score}/10 | Groq 평가: {a.groq_reason}]\n"
-        else:
-            score_line = ""
+        score_line = (
+            f"[중요도: {a.groq_score}/10 | Groq 평가: {a.groq_reason}]\n"
+            if a.groq_score > 0 else ""
+        )
 
-        # ── 본문 + 배경 조사 결합 (핵심 수정) ────────────────
-        # full_text: 원본 기사 본문 (최대 3000자)
-        # summary: Gemini 배경 조사가 추가된 내용 (최대 1000자)
-        # → 두 가지를 결합하여 LLM이 본문과 배경 지식을 동시에 참조
+        # ── 본문 + Gemini 배경 조사 결합 ──────────────────────
         body_segments = []
         if a.full_text:
-            body_segments.append(a.full_text[:3000])
+            body_segments.append(a.full_text[:per_article_budget])
         if a.summary:
-            # summary가 full_text와 완전히 같은 내용일 경우 중복 방지
             if a.summary[:100] not in (a.full_text or ""):
-                body_segments.append(f"[요약/배경]\n{a.summary[:1000]}")
+                body_segments.append(f"[요약/배경]\n{a.summary[:500]}")
         body = "\n\n".join(body_segments) if body_segments else "(본문 없음)"
-        body = body[:4000]   # 최대 4000자 (이중 절삭 제거)
+        body = body[:per_article_budget]
 
-        parts.append(
+        block = (
             f"[{i}] {a.source} | {pub}\n"
             f"{score_line}"
             f"제목: {a.title}\n"
@@ -207,6 +210,16 @@ def _format_articles(articles: list[Article]) -> str:
             f"키워드: {', '.join(a.matched_keywords)}\n"
             f"내용:\n{body}\n"
         )
+        total_chars += len(block)
+
+        # 전체 예산 초과 시 중단
+        if total_chars > MAX_TOTAL_ARTICLE_CHARS:
+            logger.info("전체 기사 텍스트 예산 초과 → %d건에서 중단 (총 %d자)",
+                        i - 1, total_chars)
+            break
+
+        parts.append(block)
+
     return "\n---\n".join(parts)
 
 
@@ -242,6 +255,11 @@ def _build_model_attribution(filter_meta: dict, research_meta: dict,
 
 import os
 
+# ── 합성 LLM 입력 제한 ────────────────────────────────────────────────────────
+MAX_ARTICLES_FOR_SYNTHESIS = 25   # Groq 한도 대응: 상위 25건만 합성에 사용
+MAX_ARTICLE_BODY_CHARS     = 2000 # 기사당 본문 최대 (기사 수 많을 때 자동 축소)
+MAX_TOTAL_ARTICLE_CHARS    = 40_000  # 전체 기사 텍스트 상한 (~10k 토큰)
+
 
 def analyze_articles(
     articles: list[Article],
@@ -261,7 +279,15 @@ def analyze_articles(
     filter_meta   = filter_meta   or {}
     research_meta = research_meta or {}
     date_str      = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    articles_text = _format_articles(articles)
+
+    # ── 합성용 기사 선별: Groq 점수 내림차순 → 상위 MAX_ARTICLES_FOR_SYNTHESIS건 ──
+    synthesis_articles = sorted(articles, key=lambda a: a.groq_score, reverse=True)
+    synthesis_articles = synthesis_articles[:MAX_ARTICLES_FOR_SYNTHESIS]
+    if len(articles) > len(synthesis_articles):
+        logger.info("합성 입력 기사 수 제한: %d건 → %d건 (Groq 점수 상위)",
+                    len(articles), len(synthesis_articles))
+
+    articles_text = _format_articles(synthesis_articles)
 
     # 분석 시작 전 임시 attribution (합성 provider는 call_llm 후 결정됨)
     attribution_placeholder = (
@@ -271,12 +297,13 @@ def analyze_articles(
     ).rstrip(" |")
 
     user_content = ANALYSIS_TEMPLATE.format(
-        count=len(articles),
+        count=len(synthesis_articles),
         articles_text=articles_text,
         model_attribution=attribution_placeholder,
     )
 
-    logger.info("LLM 앙상블 분석 시작 (기사: %d건)", len(articles))
+    logger.info("LLM 앙상블 분석 시작 (기사: %d건 / 전체 수집: %d건)",
+                len(synthesis_articles), len(articles))
     raw_text, provider = call_llm(SYSTEM_PROMPT, user_content, status_fn=status_fn)
     logger.info("분석 완료 (provider: %s)", provider)
 
@@ -286,7 +313,8 @@ def analyze_articles(
 
     return {
         "date": date_str,
-        "article_count": len(articles),
+        "article_count": len(articles),           # 전체 수집 건수
+        "synthesis_count": len(synthesis_articles),  # 실제 분석 건수
         "provider": provider,
         "model_attribution": final_attribution,
         "filter_meta": filter_meta,

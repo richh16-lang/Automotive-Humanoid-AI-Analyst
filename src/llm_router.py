@@ -145,8 +145,31 @@ def _is_rate_limit(e: Exception) -> bool:
                                    "resource exhausted", "too many", "rate_limit"))
 
 
+def _is_too_large(e: Exception) -> bool:
+    """413 / 토큰 초과 → 다음 LLM으로 폴백 대상."""
+    msg = str(e).lower()
+    return any(k in msg for k in ("413", "too large", "tokens per minute",
+                                   "request too large", "reduce your message",
+                                   "context_length_exceeded", "maximum context"))
+
+
+# Groq 무료 티어 토큰 한도 (보수적 적용: 8000자 ≈ ~2000토큰 여유 확보)
+_GROQ_MAX_USER_CHARS = 18_000
+
+
 def _call_with_retry(name: str, fn: Callable, system: str, user: str) -> str:
-    """429 에러에 한해 최대 3회 재시도, 나머지 에러는 즉시 다음 LLM으로 폴백."""
+    """
+    429 Rate Limit → 최대 3회 재시도 후 다음 LLM으로 폴백.
+    413 Too Large  → 즉시 다음 LLM으로 폴백 (재시도 없음).
+    기타 에러      → 즉시 다음 LLM으로 폴백.
+    """
+    # Groq 전용: 프롬프트가 너무 길면 미리 잘라서 413 예방
+    if name == "Groq" and len(user) > _GROQ_MAX_USER_CHARS:
+        truncated = len(user) - _GROQ_MAX_USER_CHARS
+        user = user[:_GROQ_MAX_USER_CHARS] + f"\n\n...[토큰 한도로 {truncated}자 생략]"
+        logger.warning("[Router] Groq 입력 %d자 초과 → %d자로 축소",
+                       len(user) + truncated, _GROQ_MAX_USER_CHARS)
+
     last_err: Optional[Exception] = None
     for attempt, delay in enumerate(_RETRY_DELAYS, start=1):
         try:
@@ -157,6 +180,9 @@ def _call_with_retry(name: str, fn: Callable, system: str, user: str) -> str:
                 logger.warning("[Router] %s 429 Rate Limit (시도 %d/3) — %d초 후 재시도...",
                                name, attempt, delay)
                 time.sleep(delay)
+            elif _is_too_large(e):
+                logger.warning("[Router] %s 413 Too Large → 다음 LLM으로 폴백", name)
+                raise   # 재시도 없이 즉시 폴백
             else:
                 raise
     raise last_err  # type: ignore
