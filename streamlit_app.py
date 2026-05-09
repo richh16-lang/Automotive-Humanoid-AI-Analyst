@@ -16,13 +16,14 @@ import streamlit as st
 from dotenv import load_dotenv
 
 # ── 환경변수 로드 (.env → Streamlit Secrets 순) ──────────────────────────────
+# override=True: Windows 시스템 환경변수보다 .env 파일 값을 우선 적용
 _env = Path(__file__).parent / ".env"
 if _env.exists():
-    load_dotenv(_env)
+    load_dotenv(_env, override=True)
 try:
     for _k, _v in st.secrets.items():
         if isinstance(_v, str):
-            os.environ.setdefault(_k, _v)
+            os.environ[_k] = _v          # Streamlit Secrets는 항상 덮어쓰기
 except Exception:
     pass
 
