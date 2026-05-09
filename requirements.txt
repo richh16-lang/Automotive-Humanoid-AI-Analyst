@@ -18,6 +18,9 @@ notion-client>=2.2.1
 python-docx>=1.1.0          # Word(.docx) 보고서 생성
 matplotlib>=3.9.0           # 차트 PNG 생성 (Word 임베딩 + Notion QuickChart 보조)
 
+# ── 대시보드 (Streamlit) ────────────────────────────────────
+streamlit>=1.35.0             # 웹 대시보드
+
 # ── 유틸리티 ─────────────────────────────────────────────────
 python-dotenv>=1.0.1
 pyyaml>=6.0.2
