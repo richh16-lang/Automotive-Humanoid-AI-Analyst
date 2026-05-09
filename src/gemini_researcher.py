@@ -30,11 +30,14 @@ def _has_gemini_key() -> bool:
     return bool(val) and val not in ("", "your_key_here")
 
 
-def _call_gemini_with_throttle(model, prompt: str, last_call_time: list) -> Optional[str]:
-    """Rate limit 준수 Gemini 호출."""
+def _call_gemini_with_throttle(model, prompt: str, last_call_time: list,
+                               daily_quota_exhausted: list) -> Optional[str]:
+    """Rate limit 준수 Gemini 호출. 일일 할당량 소진 시 즉시 중단."""
     import google.generativeai as genai
 
-    # 마지막 호출 이후 충분한 시간이 지났는지 확인
+    if daily_quota_exhausted[0]:
+        return None  # 이미 소진됨 → 즉시 건너뜀
+
     elapsed = time.time() - last_call_time[0]
     if elapsed < _GEMINI_INTERVAL_SEC:
         wait = _GEMINI_INTERVAL_SEC - elapsed
@@ -52,9 +55,13 @@ def _call_gemini_with_throttle(model, prompt: str, last_call_time: list) -> Opti
         last_call_time[0] = time.time()
         msg = str(e).lower()
         if "429" in msg or "quota" in msg or "rate" in msg:
-            logger.warning("[GeminiResearch] Rate limit 도달 → 해당 배치 건너뜀: %s", e)
-            # 추가 백오프
-            time.sleep(30)
+            # 일일 할당량 소진 여부 판단 (limit: 0 또는 perday 키워드)
+            if "perday" in msg or "per_day" in msg or "limit: 0" in str(e):
+                logger.warning("[GeminiResearch] 일일 할당량 소진 → 오늘 Gemini 조사 중단")
+                daily_quota_exhausted[0] = True
+            else:
+                logger.warning("[GeminiResearch] Rate limit → 배치 건너뜀 (분당 초과)")
+                time.sleep(15)
         else:
             logger.warning("[GeminiResearch] 오류 (건너뜀): %s", e)
         return None
@@ -99,13 +106,20 @@ def research_articles(articles: list, max_articles: int = _MAX_ARTICLES_TO_RESEA
 
         # 조사 대상: 상위 max_articles건
         to_research = articles[:max_articles]
-        last_call_time = [time.time() - _GEMINI_INTERVAL_SEC]  # 첫 호출 즉시 허용
+        last_call_time        = [time.time() - _GEMINI_INTERVAL_SEC]
+        daily_quota_exhausted = [False]  # 일일 할당량 소진 플래그
 
         logger.info("[GeminiResearch] %d건 배경 조사 시작 (model: %s)",
                     len(to_research), model_name)
 
         # 배치 처리
         for i in range(0, len(to_research), _BATCH_SIZE):
+            if daily_quota_exhausted[0]:
+                remaining = len(to_research) - i
+                logger.info("[GeminiResearch] 일일 할당량 소진 → 나머지 %d건 건너뜀", remaining)
+                meta["skipped_count"] += remaining
+                break
+
             batch = to_research[i:i + _BATCH_SIZE]
             articles_text = "\n\n".join(
                 f"[{j+1}] 제목: {a.title}\n"
@@ -120,7 +134,8 @@ def research_articles(articles: list, max_articles: int = _MAX_ARTICLES_TO_RESEA
                 f"{articles_text}"
             )
 
-            result = _call_gemini_with_throttle(model, prompt, last_call_time)
+            result = _call_gemini_with_throttle(
+                model, prompt, last_call_time, daily_quota_exhausted)
 
             if result:
                 # 각 기사에 배경 정보 추가

@@ -34,9 +34,11 @@ def generate_markdown(analysis: dict, output_dir: str = "/tmp") -> str:
     title_date = week_label if week_label else date_str
 
     # 파일명
-    safe_date = date_str.replace("-", "")
-    filename  = f"semiconductor_brief_{report_type.lower()}_{safe_date}.md"
-    filepath  = str(Path(output_dir) / filename)
+    safe_date  = date_str.replace("-", "")
+    filename   = f"semiconductor_brief_{report_type.lower()}_{safe_date}.md"
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)   # 폴더 자동 생성
+    filepath   = str(output_path / filename)
 
     lines = []
 
