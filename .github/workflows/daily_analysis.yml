@@ -10,12 +10,14 @@ jobs:
   daily-analysis:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # Node.js 24 강제 사용 (경고 제거)
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -47,9 +49,9 @@ jobs:
           NOTION_DAILY_DB_ID:  ${{ secrets.NOTION_DAILY_DB_ID }}
           NOTION_WEEKLY_DB_ID: ${{ secrets.NOTION_WEEKLY_DB_ID }}
           # ── Gmail ──
-          GMAIL_ADDRESS:    ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_ADDRESS:      ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          RECIPIENT_EMAILS: ${{ secrets.RECIPIENT_EMAILS }}
+          RECIPIENT_EMAILS:   ${{ secrets.RECIPIENT_EMAILS }}
           # ── 출력 파일 저장 위치 (Word + Markdown) ──
           PPT_OUTPUT_DIR: "/tmp"
           MD_OUTPUT_DIR:  "/tmp"
