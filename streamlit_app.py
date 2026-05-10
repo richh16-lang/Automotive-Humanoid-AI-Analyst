@@ -277,10 +277,14 @@ def _md_to_html(text: str) -> str:
         r"<code style='background:#1E3A5F;padding:1px 4px;border-radius:3px;color:#90E0EF'>\1</code>",
         text,
     )
-    # 4) 단독 URL (링크로 감싸지지 않은 https://... 주소) → 클릭 가능하게
+    # 4) 단독 URL → "출처 [link]" 형식으로 변환 (raw URL 숨김)
     text = re.sub(
-        r'(?<!["\(])(https?://[^\s<>")\]]+)',
-        lambda m: f'<a href="{m.group(1)}" target="_blank" style="color:#4A90A4;font-size:11px">{m.group(1)[:60]}{"…" if len(m.group(1)) > 60 else ""}</a>',
+        r'(?<!["\(=])(https?://[^\s<>")\]]+)',
+        lambda m: (
+            f'<a href="{m.group(1)}" target="_blank" '
+            f'style="color:#4A90A4;font-size:11px;text-decoration:none">'
+            f'[link]</a>'
+        ),
         text,
     )
 
@@ -725,35 +729,34 @@ def render_strategy_dashboard(analysis: dict) -> None:
 
         from urllib.parse import urlparse
 
-        st.markdown(
-            "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-top:4px'>",
-            unsafe_allow_html=True,
-        )
+        rows_html = ""
         for i, url in enumerate(source_urls[:16]):
             url = url.strip()
-            # 제목 우선 → 도메인 폴백
-            label = url_title_map.get(url, "")
-            if not label:
+            # 기사 제목 우선, 없으면 도메인
+            title_label = url_title_map.get(url, "")
+            if not title_label:
                 try:
                     domain = urlparse(url).netloc.replace("www.", "")
-                    label = domain[:30] if domain else f"출처 {i+1}"
+                    title_label = domain[:40] if domain else f"출처 {i+1}"
                 except Exception:
-                    label = f"출처 {i+1}"
+                    title_label = f"출처 {i+1}"
             else:
-                label = label[:45] + ("…" if len(label) > 45 else "")
+                title_label = title_label[:55] + ("…" if len(title_label) > 55 else "")
 
-            st.markdown(
-                f'<a href="{url}" target="_blank" '
-                f'style="display:inline-block;background:rgba(30,41,59,0.85);'
-                f'border:1px solid #334155;border-radius:6px;'
-                f'padding:5px 11px;font-size:12px;color:#CAE9FF;'
-                f'text-decoration:none;transition:border-color 0.2s;'
-                f'white-space:nowrap;max-width:300px;overflow:hidden;'
-                f'text-overflow:ellipsis">'
-                f'↗ {label}</a>',
-                unsafe_allow_html=True,
+            rows_html += (
+                f"<div style='display:flex;align-items:center;gap:10px;"
+                f"padding:7px 0;border-bottom:1px solid #1E3A5F'>"
+                f"<span style='color:#CAE9FF;font-size:13px;flex:1'>{title_label}</span>"
+                f"<a href='{url}' target='_blank' "
+                f"style='color:#00B4D8;font-size:12px;font-weight:600;"
+                f"text-decoration:none;white-space:nowrap;flex-shrink:0'>link ↗</a>"
+                f"</div>"
             )
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='background:rgba(10,22,40,0.7);border:1px solid #1E3A5F;"
+            f"border-radius:8px;padding:4px 14px'>{rows_html}</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def render_download_buttons(analysis: dict) -> None:

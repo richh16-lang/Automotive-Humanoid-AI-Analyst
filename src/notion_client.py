@@ -697,18 +697,53 @@ _VARIANT_TO_CANONICAL: dict[str, str] = {
 }
 
 
+def _match_heading(stripped: str) -> str | None:
+    """
+    한 줄 텍스트가 섹션 헤딩인지 판단하고 canonical 제목 반환.
+    None 이면 헤딩 아님.
+
+    3단계 탐지:
+    1) 정확 일치       : "1. 핵심 요약"  / "핵심 요약"
+    2) 번호 접두어     : "10. Why Now? — 전략적 시급성"  →  body 부분으로 재시도
+    3) ## 접두어       : "## 1. 핵심 요약"  (sections 파싱 실패로 raw가 paragraph에 저장된 경우)
+                         → ## 제거 후 1~2 단계 재귀 적용
+    """
+    # 1단계: 정확 일치
+    c = _VARIANT_TO_CANONICAL.get(stripped)
+    if c:
+        return c
+
+    # 2단계: "N. body" 형식
+    m = re.match(r"^\d{1,2}[\.\)]\s+(.+)$", stripped)
+    if m:
+        body = m.group(1).strip()
+        c = _VARIANT_TO_CANONICAL.get(body)
+        if c:
+            return c
+        # body가 variants 중 하나로 시작하는지 확인 (부분 일치 fallback)
+        for canon, variants in _SECTION_HEADING_VARIANTS.items():
+            if any(body.startswith(v) for v in variants):
+                return canon
+
+    # 3단계: "## heading" 또는 "## N. heading" 형식
+    #   → sections 파싱 실패로 LLM raw 출력이 paragraph 블록으로 저장됐을 때
+    m2 = re.match(r"^#{1,3}\s+(.+)$", stripped)
+    if m2:
+        inner = m2.group(1).strip()
+        return _match_heading(inner)   # 재귀: ## 제거 후 1~2단계 재시도
+
+    return None
+
+
 def _parse_raw_to_sections(raw_text: str) -> dict:
     """
     Notion 페이지 블록에서 추출한 raw 텍스트 → 섹션 제목 : 내용 dict 파싱.
 
-    헤딩 감지 전략 (2단계):
-    1차 — 정확 일치: _VARIANT_TO_CANONICAL 역매핑으로 O(1) 조회
-    2차 — 번호 접두어 제거 후 재시도: "3. AI Agent 아키텍처 영향" → body="AI Agent 아키텍처 영향"
-          이 body로 다시 1차 조회
-
-    불릿/내용 줄 오탐 방지:
-    - "② Micron: HBM4 메모리 양산 시작"처럼 ①~⑩으로 시작하는 줄은 절대 헤딩으로 처리 안 함
-    - substring 일치(h in stripped)는 사용 안 함 → false positive 원천 차단
+    지원 형식:
+    - "1. 핵심 요약"              (heading_2 블록, 정상 저장된 경우)
+    - "핵심 요약"                 (heading_2 블록, 번호 없는 경우)
+    - "## 1. 핵심 요약"           (paragraph 블록, sections 비어있어 raw가 저장된 경우)
+    - "## 핵심 요약"              (위와 동일)
     """
     sections: dict = {}
     current_title: str | None = None
@@ -716,22 +751,7 @@ def _parse_raw_to_sections(raw_text: str) -> dict:
 
     for line in raw_text.split("\n"):
         stripped = line.strip()
-
-        # ── 1차: 정확 일치 ────────────────────────────────────────────────────
-        canonical = _VARIANT_TO_CANONICAL.get(stripped)
-
-        # ── 2차: "N. 제목" 형식 (LLM이 변형 또는 Notion 저장 그대로 읽힌 경우) ─
-        if not canonical:
-            m = re.match(r"^\d{1,2}[\.\)]\s+(.+)$", stripped)
-            if m:
-                body = m.group(1).strip()
-                canonical = _VARIANT_TO_CANONICAL.get(body)
-                # body가 변형 목록에 없으면 각 canonical 키워드로 시작하는지 확인
-                if not canonical:
-                    for canon, variants in _SECTION_HEADING_VARIANTS.items():
-                        if any(body.startswith(v) for v in variants):
-                            canonical = canon
-                            break
+        canonical = _match_heading(stripped)
 
         if canonical:
             if current_title and current_lines:
@@ -739,6 +759,7 @@ def _parse_raw_to_sections(raw_text: str) -> dict:
             current_title = canonical
             current_lines = []
         elif current_title:
+            # "##" 로 시작하는 비-헤딩 줄(소제목 등)은 ### 이하이면 유지
             current_lines.append(line)
 
     if current_title and current_lines:
