@@ -111,11 +111,32 @@ def _extract_summary_text(analysis: dict) -> str:
 
 
 def _paragraph_blocks(text: str) -> list[dict]:
-    """긴 텍스트를 여러 paragraph 블록으로 분할."""
+    """
+    긴 텍스트를 여러 paragraph 블록으로 분할.
+
+    1900자 고정 분할 → 단어·줄 경계 우선 분할로 교체.
+    "분산형"이 "분" + "산형"으로 잘리는 현상 방지.
+    """
     if not text or not text.strip():
         return []
-    chunks = [text[i: i + _MAX_BLOCK_TEXT]
-              for i in range(0, len(text), _MAX_BLOCK_TEXT)]
+
+    chunks: list[str] = []
+    remaining = text
+    while len(remaining) > _MAX_BLOCK_TEXT:
+        # 1) 1900자 이내 마지막 줄바꿈 위치
+        cut = remaining.rfind("\n", 0, _MAX_BLOCK_TEXT)
+        if cut <= 0:
+            # 2) 줄바꿈 없으면 마지막 공백
+            cut = remaining.rfind(" ", 0, _MAX_BLOCK_TEXT)
+        if cut <= 0:
+            # 3) 공백도 없으면 강제 분할
+            cut = _MAX_BLOCK_TEXT
+        chunks.append(remaining[:cut])
+        remaining = remaining[cut:].lstrip("\n")
+
+    if remaining.strip():
+        chunks.append(remaining)
+
     return [
         {"object": "block", "type": "paragraph",
          "paragraph": {"rich_text": _rich_text(c)}}

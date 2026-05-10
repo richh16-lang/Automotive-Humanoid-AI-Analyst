@@ -504,14 +504,16 @@ def _extract_ratio_chart_data(content: str):
     """
     On-device vs Cloud 처리 비율 시계열 데이터를 섹션 내용에서 감지·추출.
 
-    인식 패턴 예시:
-      [2024년 추정] [2026년 추정] [2028년 전망]
-      On-device: 30% → On-device: 50% → On-device: 70%
-      Cloud: 70%     → Cloud: 50%     → Cloud: 30%
+    ▸ Format A (연도별 행, 우선순위 높음):
+        2024년: On-device 30% : Cloud 70%
+        2026년: On-device 45% : Cloud 55%  ← 현재 (추정)
+
+    ▸ Format B (지표별 행 + 별도 연도 헤더):
+        [2024년 추정] [2026년 추정] [2028년 전망]
+        On-device: 30% → 45% → 70%
+        Cloud: 70% → 55% → 30%
 
     반환: (cleaned_content, pd.DataFrame | None)
-      - cleaned_content: 차트 데이터 줄이 제거된 나머지 텍스트
-      - DataFrame: 연도 × (On-device, Cloud) 비율표, 없으면 None
     """
     import re
     try:
@@ -520,15 +522,45 @@ def _extract_ratio_chart_data(content: str):
         return content, None
 
     lines = content.split("\n")
-    ondev_idx = cloud_idx = year_idx = -1
+
+    # ── Format A: 연도와 두 지표값이 같은 줄 ─────────────────────────────────
+    # "2024년: On-device 30% : Cloud 70%" 또는 "2026년 On-device 45% Cloud 55%"
+    _FMT_A = re.compile(
+        r'(20\d\d)[년\s]*[：:\-]?\s*'       # 연도
+        r'(?:.*?)On.?device[^\d]*(\d+)\s*%'  # On-device %
+        r'[^%\n]*Cloud[^\d]*(\d+)\s*%',      # Cloud %
+        re.IGNORECASE,
+    )
+    fmt_a_rows: list[tuple[str, int, int]] = []  # (연도, ondev, cloud)
+    fmt_a_idxs: list[int] = []
 
     for i, line in enumerate(lines):
-        if re.search(r'On.?device.*\d+\s*%', line, re.IGNORECASE):
+        m = _FMT_A.search(line)
+        if m:
+            fmt_a_rows.append((m.group(1) + "년", int(m.group(2)), int(m.group(3))))
+            fmt_a_idxs.append(i)
+
+    if len(fmt_a_rows) >= 2:
+        df = pd.DataFrame(
+            {
+                "On-device (%)": [r[1] for r in fmt_a_rows],
+                "Cloud (%)":     [r[2] for r in fmt_a_rows],
+            },
+            index=[r[0] for r in fmt_a_rows],
+        )
+        remove = set(fmt_a_idxs)
+        clean  = "\n".join(ln for i, ln in enumerate(lines) if i not in remove)
+        return clean, df
+
+    # ── Format B: 지표별 행 (→ 로 연결된 여러 값) ────────────────────────────
+    # On-device 와 Cloud 가 각각 별도 행에 있고, 화살표(→)로 여러 시점 연결
+    ondev_idx = cloud_idx = year_idx = -1
+    for i, line in enumerate(lines):
+        if re.search(r'On.?device[:\s]+\d+\s*%', line, re.IGNORECASE) and '→' in line:
             ondev_idx = i
-        if re.search(r'Cloud.*\d+\s*%', line, re.IGNORECASE):
+        if re.search(r'Cloud[:\s]+\d+\s*%', line, re.IGNORECASE) and '→' in line:
             cloud_idx = i
-        # 연도 헤더 줄: [2024년 추정] 형태이고 % 는 없는 줄
-        if re.search(r'20\d\d', line) and '%' not in line and re.search(r'추정|전망|년도|year', line, re.IGNORECASE):
+        if re.search(r'20\d\d', line) and '%' not in line:
             year_idx = i
 
     if ondev_idx == -1 or cloud_idx == -1:
@@ -541,12 +573,9 @@ def _extract_ratio_chart_data(content: str):
         return content, None
 
     n = min(len(ondev_vals), len(cloud_vals))
-
-    # 연도 레이블 추출
+    years: list[str] = []
     if year_idx != -1:
         years = [f"{y}년" for y in re.findall(r'(20\d\d)', lines[year_idx])[:n]]
-    else:
-        years = []
     while len(years) < n:
         years.append(f"시점 {len(years)+1}")
 
@@ -554,8 +583,6 @@ def _extract_ratio_chart_data(content: str):
         {"On-device (%)": ondev_vals[:n], "Cloud (%)": cloud_vals[:n]},
         index=years[:n],
     )
-
-    # 차트 관련 줄 제거
     remove = {ondev_idx, cloud_idx}
     if year_idx != -1:
         remove.add(year_idx)
@@ -564,25 +591,69 @@ def _extract_ratio_chart_data(content: str):
 
 
 def _render_ratio_chart(df: "pd.DataFrame") -> None:
-    """On-device vs Cloud 처리 비율 변화 Bar Chart (섹션 카드 하단 삽입)."""
-    st.markdown(
-        "<div style='background:#0F172A;border:1px solid #334155;"
-        "border-radius:8px;padding:14px 18px;margin-top:10px'>",
-        unsafe_allow_html=True,
-    )
+    """
+    On-device vs Cloud 처리 비율 변화 — Stacked Bar Chart.
+    Altair 사용 (Streamlit 내장) → 100% 기준 정확한 스택.
+    """
     st.markdown(
         "<div style='color:#38BDF8;font-size:12px;font-weight:700;"
-        "letter-spacing:0.3px;margin-bottom:6px'>"
+        "letter-spacing:0.3px;margin:14px 0 2px'>"
         "📊 On-device vs Cloud 처리 비율 변화</div>",
         unsafe_allow_html=True,
     )
+
+    # ── Long-format 변환 (Altair 스택 차트용) ────────────────────────────────
+    df_reset = df.reset_index()
+    df_reset.columns = ["연도", "On-device (%)", "Cloud (%)"]
+    df_long  = df_reset.melt(id_vars="연도", var_name="종류", value_name="비율")
+    # On-device 를 아래(stack order 0), Cloud 를 위(stack order 1)
+    df_long["sort_key"] = df_long["종류"].map({"On-device (%)": 0, "Cloud (%)": 1})
+
     try:
-        st.bar_chart(df, color=["#38BDF8", "#475569"], height=220,
-                     use_container_width=True)
-    except TypeError:          # 구버전 Streamlit — color 파라미터 미지원
-        st.bar_chart(df, height=220, use_container_width=True)
+        import altair as alt
+
+        color_scale = alt.Scale(
+            domain=["On-device (%)", "Cloud (%)"],
+            range=["#38BDF8", "#475569"],
+        )
+        chart = (
+            alt.Chart(df_long)
+            .mark_bar(size=60)
+            .encode(
+                x=alt.X("연도:N", title="",
+                        axis=alt.Axis(labelAngle=0, labelColor="#94A3B8",
+                                      labelFontSize=12, tickColor="#334155")),
+                y=alt.Y("비율:Q", title="처리 비율 (%)", stack="zero",
+                        scale=alt.Scale(domain=[0, 100]),
+                        axis=alt.Axis(labelColor="#64748B", titleColor="#64748B",
+                                      gridColor="#1E293B", domainColor="#334155")),
+                color=alt.Color("종류:N", scale=color_scale,
+                                legend=alt.Legend(
+                                    orient="bottom", direction="horizontal",
+                                    labelColor="#94A3B8", titleColor="#94A3B8",
+                                    labelFontSize=11,
+                                )),
+                order=alt.Order("sort_key:Q", sort="ascending"),
+                tooltip=[
+                    alt.Tooltip("연도:N",  title="연도"),
+                    alt.Tooltip("종류:N",  title="종류"),
+                    alt.Tooltip("비율:Q",  title="비율 (%)", format=".0f"),
+                ],
+            )
+            .properties(height=240, background="transparent")
+            .configure_view(strokeWidth=0)
+            .configure_axis(gridOpacity=0.4)
+        )
+        st.altair_chart(chart, use_container_width=True)
+
+    except Exception:
+        # Altair 불가 시 st.bar_chart 폴백
+        try:
+            st.bar_chart(df, color=["#38BDF8", "#475569"], height=240)
+        except TypeError:
+            st.bar_chart(df, height=240)
+
     st.caption("※ LLM 생성 추정치 기준 (자동차/산업 로봇 AI 추론 시장 전망)")
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_source_cards(analysis: dict, max_items: int = 15, heading: str = "📎 참고 기사") -> None:
