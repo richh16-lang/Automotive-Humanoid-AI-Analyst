@@ -159,7 +159,7 @@ def send_daily_email(
 ) -> None:
     date_str    = analysis.get("date", "")
     attribution = analysis.get("model_attribution", analysis.get("provider", "-"))
-    subject     = f"[Daily] {date_str} AI/Semiconductor News — Automotive/Humanoid/Storage [{attribution[:25]}]"
+    subject     = f"[인창's Daily] {date_str} AI/Semiconductor News — Automotive/Humanoid/Storage [{attribution[:25]}]"
     html        = _build_html(analysis, "Daily")
 
     # 첨부: Word(보고서) + Markdown(NotebookLM용)
