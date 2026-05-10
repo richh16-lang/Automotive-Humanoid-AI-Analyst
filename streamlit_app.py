@@ -249,7 +249,12 @@ def _md_to_html(text: str) -> str:
     """마크다운 → Streamlit HTML 변환."""
     import re
 
-    # ── Step 0: 고아 ** 정리 ───────────────────────────────────────────────────
+    # ── Step 0-a: 단독 백틱 줄 제거 ─────────────────────────────────────────
+    # LLM이 코드 블록(```)을 열었다 닫지 않으면 ` 또는 ``` 만 있는 줄이 남음
+    # → 해당 줄을 통째로 제거 (인라인 코드 `text` 는 건드리지 않음)
+    text = re.sub(r'^\s*`{1,3}\s*$', '', text, flags=re.MULTILINE)
+
+    # ── Step 0-b: 고아 ** 정리 ───────────────────────────────────────────────
     # 한 줄에 ** 개수가 홀수이면 짝 없는 고아 **가 존재.
     # → 해당 줄의 마지막 ** 를 제거 (내용 잘림 방지).
     # "**Samsung**, **SK Hynix**" → 4개(짝수) → 건드리지 않음 ✓
@@ -271,6 +276,12 @@ def _md_to_html(text: str) -> str:
     )
     # 2) **굵게**
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong style='color:#FFFFFF'>\1</strong>", text)
+    # 2.5) *이탤릭* — ** 처리 후 남은 단독 * 만 처리 (줄 경계 미침)
+    text = re.sub(
+        r'(?<!\*)\*(?!\*)([^*\n]+?)(?<!\*)\*(?!\*)',
+        r"<em style='color:#BAE6FD;font-style:italic'>\1</em>",
+        text,
+    )
     # 3) `코드`
     text = re.sub(
         r"`(.+?)`",
@@ -487,6 +498,91 @@ def _collect_source_items(analysis: dict) -> list[dict]:
             items.append({"title": domain, "url": url, "source": "", "summary": ""})
 
     return items
+
+
+def _extract_ratio_chart_data(content: str):
+    """
+    On-device vs Cloud 처리 비율 시계열 데이터를 섹션 내용에서 감지·추출.
+
+    인식 패턴 예시:
+      [2024년 추정] [2026년 추정] [2028년 전망]
+      On-device: 30% → On-device: 50% → On-device: 70%
+      Cloud: 70%     → Cloud: 50%     → Cloud: 30%
+
+    반환: (cleaned_content, pd.DataFrame | None)
+      - cleaned_content: 차트 데이터 줄이 제거된 나머지 텍스트
+      - DataFrame: 연도 × (On-device, Cloud) 비율표, 없으면 None
+    """
+    import re
+    try:
+        import pandas as pd
+    except ImportError:
+        return content, None
+
+    lines = content.split("\n")
+    ondev_idx = cloud_idx = year_idx = -1
+
+    for i, line in enumerate(lines):
+        if re.search(r'On.?device.*\d+\s*%', line, re.IGNORECASE):
+            ondev_idx = i
+        if re.search(r'Cloud.*\d+\s*%', line, re.IGNORECASE):
+            cloud_idx = i
+        # 연도 헤더 줄: [2024년 추정] 형태이고 % 는 없는 줄
+        if re.search(r'20\d\d', line) and '%' not in line and re.search(r'추정|전망|년도|year', line, re.IGNORECASE):
+            year_idx = i
+
+    if ondev_idx == -1 or cloud_idx == -1:
+        return content, None
+
+    ondev_vals = [int(x) for x in re.findall(r'(\d+)\s*%', lines[ondev_idx])]
+    cloud_vals = [int(x) for x in re.findall(r'(\d+)\s*%', lines[cloud_idx])]
+
+    if len(ondev_vals) < 2 or len(cloud_vals) < 2:
+        return content, None
+
+    n = min(len(ondev_vals), len(cloud_vals))
+
+    # 연도 레이블 추출
+    if year_idx != -1:
+        years = [f"{y}년" for y in re.findall(r'(20\d\d)', lines[year_idx])[:n]]
+    else:
+        years = []
+    while len(years) < n:
+        years.append(f"시점 {len(years)+1}")
+
+    df = pd.DataFrame(
+        {"On-device (%)": ondev_vals[:n], "Cloud (%)": cloud_vals[:n]},
+        index=years[:n],
+    )
+
+    # 차트 관련 줄 제거
+    remove = {ondev_idx, cloud_idx}
+    if year_idx != -1:
+        remove.add(year_idx)
+    clean = "\n".join(ln for i, ln in enumerate(lines) if i not in remove)
+    return clean, df
+
+
+def _render_ratio_chart(df: "pd.DataFrame") -> None:
+    """On-device vs Cloud 처리 비율 변화 Bar Chart (섹션 카드 하단 삽입)."""
+    st.markdown(
+        "<div style='background:#0F172A;border:1px solid #334155;"
+        "border-radius:8px;padding:14px 18px;margin-top:10px'>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div style='color:#38BDF8;font-size:12px;font-weight:700;"
+        "letter-spacing:0.3px;margin-bottom:6px'>"
+        "📊 On-device vs Cloud 처리 비율 변화</div>",
+        unsafe_allow_html=True,
+    )
+    try:
+        st.bar_chart(df, color=["#38BDF8", "#475569"], height=220,
+                     use_container_width=True)
+    except TypeError:          # 구버전 Streamlit — color 파라미터 미지원
+        st.bar_chart(df, height=220, use_container_width=True)
+    st.caption("※ LLM 생성 추정치 기준 (자동차/산업 로봇 AI 추론 시장 전망)")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_source_cards(analysis: dict, max_items: int = 15, heading: str = "📎 참고 기사") -> None:
@@ -765,8 +861,11 @@ def render_analysis_sections(analysis: dict) -> None:
 
     total_sections = len(sections)
     for sec_idx, (title, content) in enumerate(sections.items(), 1):
+        # ── 비율 차트 데이터 추출 (있으면 해당 줄은 content에서 제거) ──────────
+        clean_content, chart_df = _extract_ratio_chart_data(content)
+
         color     = _section_color(title)
-        html_body = _md_to_html(content)
+        html_body = _md_to_html(clean_content)
         num_badge = f"<span class='sec-num'>{sec_idx}</span>"
 
         if _is_highlight_section(title):
@@ -790,6 +889,10 @@ def render_analysis_sections(analysis: dict) -> None:
                 f"</div>",
                 unsafe_allow_html=True,
             )
+
+        # ── 비율 차트 렌더링 (섹션 카드 바로 아래) ───────────────────────────
+        if chart_df is not None:
+            _render_ratio_chart(chart_df)
 
         # 마지막 섹션이 아니면 구분선 삽입
         if sec_idx < total_sections:
