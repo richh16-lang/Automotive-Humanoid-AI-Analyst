@@ -1633,6 +1633,13 @@ def main() -> None:
                 unsafe_allow_html=True,
             )
         else:
+            st.markdown(
+                "<style>"
+                "div[data-testid='stTextInput'][data-key='admin_pw_input'] input"
+                "{padding-top:4px!important;padding-bottom:4px!important;height:32px!important;}"
+                "</style>",
+                unsafe_allow_html=True,
+            )
             _pw = st.text_input(
                 "pw",
                 type="password",
@@ -1651,7 +1658,7 @@ def main() -> None:
                         unsafe_allow_html=True,
                     )
         st.markdown(
-            "<p style='color:#475569;font-size:10.5px;margin:4px 0 0;"
+            "<p style='color:#FBBF24;font-size:10.5px;margin:4px 0 0;"
             "text-align:center;font-style:italic'>"
             "Only inchang can perform this</p>",
             unsafe_allow_html=True,
@@ -1664,7 +1671,7 @@ def main() -> None:
             help="Notion에 저장된 특정 날짜의 분석 결과를 불러옵니다",
         )
         st.markdown(
-            "<p style='color:#475569;font-size:10.5px;margin:4px 0 0;"
+            "<p style='color:#FBBF24;font-size:10.5px;margin:4px 0 0;"
             "text-align:center;font-style:italic'>"
             "Anyone can perform this</p>",
             unsafe_allow_html=True,
