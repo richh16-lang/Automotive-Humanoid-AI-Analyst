@@ -707,19 +707,27 @@ def _build_summary_text(analysis: dict) -> str:
     return "\n".join(lines)
 
 
-def _load_from_notion(date_str: str) -> dict | None:
+def _load_from_notion(date_str: str) -> tuple[dict | None, str]:
     """
     Notion에서 특정 날짜 분석 데이터 로드.
-    성공 시 analysis dict 반환, 실패/없음 시 None.
+    반환: (analysis dict 또는 None, 오류 메시지 문자열)
     """
-    if not (os.environ.get("NOTION_TOKEN") and os.environ.get("NOTION_DAILY_DB_ID")):
-        return None
+    if not os.environ.get("NOTION_TOKEN"):
+        return None, "NOTION_TOKEN이 설정되지 않았습니다."
+    if not os.environ.get("NOTION_DAILY_DB_ID"):
+        return None, "NOTION_DAILY_DB_ID가 설정되지 않았습니다."
     try:
-        from src.notion_client import fetch_daily_from_notion
-        return fetch_daily_from_notion(date_str)
+        from src.notion_client import fetch_daily_from_notion, ensure_date_property
+        # 날짜 속성 없으면 조용히 추가 (1회 자동 설정)
+        ensure_date_property()
+        result = fetch_daily_from_notion(date_str)
+        if result is None:
+            return None, f"{date_str} 날짜의 분석 데이터가 Notion에 없습니다."
+        return result, ""
     except Exception as e:
-        _append_log(f"Notion 로드 실패: {e}", "warn")
-        return None
+        err = str(e)
+        _append_log(f"Notion 로드 실패: {err}", "warn")
+        return None, err
 
 
 def render_llm_log() -> None:
@@ -1069,12 +1077,16 @@ def main() -> None:
         st.session_state["notion_auto_loaded"] = True   # 재실행 방지
         if os.environ.get("NOTION_TOKEN") and os.environ.get("NOTION_DAILY_DB_ID"):
             with st.spinner(f"📥 오늘({_today_kst}) Notion 데이터 자동 로드 중..."):
-                _auto = _load_from_notion(_today_kst)
+                _auto, _auto_err = _load_from_notion(_today_kst)
             if _auto:
                 st.session_state["daily_analysis"] = _auto
                 st.session_state["last_run"] = f"{_today_kst} (Notion)"
-                _append_log(f"Notion 자동 로드: {_today_kst}", "ok")
+                _append_log(f"Notion 자동 로드 성공: {_today_kst}", "ok")
                 st.rerun()
+            else:
+                _append_log(f"Notion 자동 로드 실패: {_auto_err}", "warn")
+                # 오류가 있으면 활동 로그 탭에서 확인 안내
+                st.session_state["notion_load_error"] = _auto_err
 
     # ── 메인 버튼 행: 실행 + 과거 데이터 불러오기 ────────────────────────────
     col_btn, col_hist, col_kw = st.columns([2, 2, 4])
@@ -1137,17 +1149,20 @@ def main() -> None:
             if fetch_clicked:
                 _date_str = selected_date.isoformat()
                 with st.spinner(f"📥 {_date_str} Notion 데이터 로드 중..."):
-                    _hist = _load_from_notion(_date_str)
+                    _hist, _hist_err = _load_from_notion(_date_str)
                 if _hist:
                     st.session_state["daily_analysis"] = _hist
                     st.session_state["last_run"] = f"{_date_str} (Notion)"
                     st.session_state["show_date_picker"] = False
-                    _append_log(f"Notion 과거 로드: {_date_str}", "ok")
+                    _append_log(f"Notion 과거 로드 성공: {_date_str}", "ok")
                     st.rerun()
                 else:
+                    _append_log(f"Notion 로드 실패 ({_date_str}): {_hist_err}", "warn")
                     st.warning(
-                        f"⚠️ {_date_str} 날짜의 분석 데이터가 Notion에 없습니다. "
-                        "날짜를 다시 선택하거나 실시간 분석을 실행하세요."
+                        f"⚠️ {_date_str} 불러오기 실패\n\n"
+                        f"**오류**: `{_hist_err}`\n\n"
+                        "날짜를 다시 선택하거나 아래 **🖥 활동 로그** 탭에서 "
+                        "상세 오류를 확인하세요."
                     )
 
     # ── 파이프라인 실행 ────────────────────────────────────────────────────────
@@ -1192,6 +1207,16 @@ def main() -> None:
                 "</div>",
                 unsafe_allow_html=True,
             )
+            # Notion 자동 로드 실패 시 오류 원인 표시
+            _load_err = st.session_state.get("notion_load_error", "")
+            if _load_err:
+                st.error(
+                    f"🔴 Notion 자동 로드 실패: `{_load_err}`\n\n"
+                    "**체크리스트:**\n"
+                    "- Streamlit Cloud Secrets에 `NOTION_TOKEN` 설정 확인\n"
+                    "- Streamlit Cloud Secrets에 `NOTION_DAILY_DB_ID` 설정 확인\n"
+                    "- **🖥 활동 로그** 탭에서 상세 오류 확인"
+                )
         else:
             analysis = st.session_state["daily_analysis"]
 
