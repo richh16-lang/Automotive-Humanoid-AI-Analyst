@@ -287,24 +287,27 @@ def _build_blocks(analysis: dict) -> list[dict]:
 
             if content.strip():
                 is_summary = any(k in title for k in ("핵심 요약", "요약", "Summary"))
-                # ── 마크다운 표는 paragraph 블록으로 그대로 저장 ──────────────
-                # Notion 네이티브 table 블록으로 변환하면 _extract_page_text()
-                # 가 table_row 자식을 읽지 못해 대시보드 캐시 로드 시 표가
-                # 통째로 유실됨. paragraph로 저장하면 마크다운 텍스트가 보존되어
-                # _md_to_html()이 HTML 표로 정상 변환.
-                bullets = _parse_bullets(content, keep_links=is_summary)
-                if bullets:
-                    for b in bullets:
-                        if isinstance(b, list):  # rich_text with links
-                            blocks.append({
-                                "object": "block",
-                                "type": "bulleted_list_item",
-                                "bulleted_list_item": {"rich_text": b},
-                            })
-                        else:
-                            blocks.append(_bullet_block(b))
-                else:
-                    blocks.extend(_paragraph_blocks(content))
+                # ── 마크다운 표 → Notion table 블록, 일반 텍스트 → bullets/paragraph ──
+                segments = _split_content_tables(content)
+                for seg_text, is_table in segments:
+                    if is_table and seg_text.strip():
+                        rows = _parse_md_table_rows(seg_text)
+                        if rows:
+                            blocks.append(_table_block(rows, has_header=True))
+                        continue
+                    bullets = _parse_bullets(seg_text, keep_links=is_summary)
+                    if bullets:
+                        for b in bullets:
+                            if isinstance(b, list):  # rich_text with links
+                                blocks.append({
+                                    "object": "block",
+                                    "type": "bulleted_list_item",
+                                    "bulleted_list_item": {"rich_text": b},
+                                })
+                            else:
+                                blocks.append(_bullet_block(b))
+                    else:
+                        blocks.extend(_paragraph_blocks(seg_text))
 
             blocks.append(_divider_block())
     else:
@@ -740,11 +743,44 @@ def fetch_weekly_analyses(days: int = 7) -> list[dict]:
     return analyses
 
 
+def _extract_table_as_markdown(client: Client, table_block_id: str) -> str:
+    """
+    Notion table 블록의 table_row 자식을 읽어 마크다운 표 형식으로 재조립.
+
+    _extract_page_text()가 table 블록을 만났을 때 호출된다.
+    table 블록의 rich_text는 항상 비어 있으므로, children.list()로
+    table_row 자식을 별도 조회해야 한다.
+    """
+    try:
+        resp = client.blocks.children.list(block_id=table_block_id)
+        rows: list[str] = []
+        for row_block in resp.get("results", []):
+            if row_block.get("type") != "table_row":
+                continue
+            cells = row_block.get("table_row", {}).get("cells", [])
+            cell_texts = [
+                "".join(r.get("plain_text", "") for r in cell)
+                for cell in cells
+            ]
+            rows.append("| " + " | ".join(cell_texts) + " |")
+        if len(rows) >= 2:
+            col_count = len(rows[0].split("|")) - 2
+            separator = "| " + " | ".join(["---"] * col_count) + " |"
+            rows.insert(1, separator)
+        return "\n".join(rows)
+    except Exception as e:
+        logger.debug("테이블 블록 읽기 실패 %s: %s", table_block_id, e)
+        return ""
+
+
 def _extract_page_text(client: Client, page_id: str) -> str:
     """
     페이지 블록 전체 텍스트 추출.
     _rich_text_with_links()가 URL을 'plain_text="클릭"' + link 어노테이션으로 저장하므로,
     plain_text가 "클릭" 등인 경우 실제 URL을 복원해 반환한다.
+
+    table 블록은 rich_text 가 비어 있으므로 _extract_table_as_markdown()으로
+    table_row 자식을 읽어 마크다운 형식으로 복원한다.
     """
     _LINK_PLACEHOLDERS = {"클릭", "링크", "Link", "[Link]", "link", "source"}
 
@@ -756,6 +792,14 @@ def _extract_page_text(client: Client, page_id: str) -> str:
         resp = client.blocks.children.list(**kwargs)
         for block in resp.get("results", []):
             btype = block.get("type", "")
+
+            # ── table 블록: rich_text가 비어 있으므로 자식 rows를 직접 조회 ──
+            if btype == "table":
+                table_md = _extract_table_as_markdown(client, block["id"])
+                if table_md:
+                    lines.append(table_md)
+                continue
+
             rich  = block.get(btype, {}).get("rich_text", [])
             parts: list[str] = []
             for r in rich:
