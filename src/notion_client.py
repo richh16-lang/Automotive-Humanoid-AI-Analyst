@@ -2,6 +2,7 @@
 import logging
 import os
 import re
+import requests as _requests
 from datetime import datetime, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))
@@ -12,6 +13,7 @@ from notion_client.errors import APIResponseError
 logger = logging.getLogger(__name__)
 
 _MAX_BLOCK_TEXT = 1900   # Notion 블록 하나당 최대 글자 수 (한도 2000)
+_NOTION_VERSION = "2022-06-28"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -23,6 +25,36 @@ def _get_client() -> Client:
     if not token:
         raise ValueError("NOTION_TOKEN 환경변수가 없습니다.")
     return Client(auth=token)
+
+
+def _notion_query(db_id: str,
+                  filter_body: dict | None = None,
+                  sorts: list | None = None,
+                  page_size: int = 10) -> list[dict]:
+    """
+    requests로 Notion DB를 직접 쿼리.
+    notion-client SDK의 databases.query() 버전 호환 문제를 우회.
+    """
+    token = os.environ.get("NOTION_TOKEN", "")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Notion-Version": _NOTION_VERSION,
+        "Content-Type": "application/json",
+    }
+    body: dict = {"page_size": page_size}
+    if filter_body:
+        body["filter"] = filter_body
+    if sorts:
+        body["sorts"] = sorts
+
+    resp = _requests.post(
+        f"https://api.notion.com/v1/databases/{db_id}/query",
+        headers=headers,
+        json=body,
+        timeout=20,
+    )
+    resp.raise_for_status()
+    return resp.json().get("results", [])
 
 
 def _rich_text(content: str) -> list[dict]:
@@ -284,21 +316,21 @@ def _parse_bullets(content: str, keep_links: bool = False) -> list:
 
 def _get_title_prop_name(client: Client, db_id: str) -> str:
     """DB의 타이틀 속성 이름을 동적으로 감지 (한국어 UI: '이름', 영어 UI: 'Name')."""
-    try:
-        result = client.databases.query(**{"database_id": db_id, "page_size": 1})
-        pages = result.get("results", [])
-        if pages:
-            for pname, pinfo in pages[0].get("properties", {}).items():
-                if pinfo.get("type") == "title":
-                    return pname
-    except Exception:
-        pass
-    # 페이지 없으면 직접 retrieve 시도 (구버전 Notion)
+    # 1차: DB retrieve로 속성 스키마 조회
     try:
         db = client.databases.retrieve(database_id=db_id)
         for pname, pinfo in db.get("properties", {}).items():
             if pinfo.get("type") == "title":
                 return pname
+    except Exception:
+        pass
+    # 2차: 최근 페이지 1개로 추론
+    try:
+        pages = _notion_query(db_id, page_size=1)
+        if pages:
+            for pname, pinfo in pages[0].get("properties", {}).items():
+                if pinfo.get("type") == "title":
+                    return pname
     except Exception:
         pass
     return "이름"   # 한국어 Notion 기본값
@@ -338,9 +370,15 @@ def _build_properties(title_prop: str, title: str, analysis: dict,
 
 def _get_db_prop_names(client: Client, db_id: str) -> set:
     """DB에 실제로 존재하는 속성 이름 집합 반환."""
+    # DB retrieve로 스키마에서 직접 가져오기 (query 불필요)
     try:
-        result = client.databases.query(**{"database_id": db_id, "page_size": 1})
-        pages = result.get("results", [])
+        db = client.databases.retrieve(database_id=db_id)
+        return set(db.get("properties", {}).keys())
+    except Exception:
+        pass
+    # 폴백: 최근 페이지 1개에서 추론
+    try:
+        pages = _notion_query(db_id, page_size=1)
         if pages:
             return set(pages[0].get("properties", {}).keys())
     except Exception:
@@ -480,23 +518,15 @@ def fetch_weekly_analyses(days: int = 7) -> list[dict]:
     client  = _get_client()
     cutoff  = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
 
-    results, cursor = [], None
-    while True:
-        kwargs: dict = {
-            "database_id": db_id,
-            "sorts": [{"timestamp": "created_time", "direction": "ascending"}],
-        }
-        if cursor:
-            kwargs["start_cursor"] = cursor
-        try:
-            resp = client.databases.query(**kwargs)
-        except Exception as e:
-            logger.warning("DB 쿼리 실패: %s", e)
-            break
-        results.extend(resp.get("results", []))
-        if not resp.get("has_more"):
-            break
-        cursor = resp.get("next_cursor")
+    results = []
+    try:
+        results = _notion_query(
+            db_id,
+            sorts=[{"timestamp": "created_time", "direction": "ascending"}],
+            page_size=50,
+        )
+    except Exception as e:
+        logger.warning("DB 쿼리 실패: %s", e)
 
     logger.info("Notion Daily 조회: %d개", len(results))
 
@@ -573,12 +603,12 @@ def diagnose_notion_db(db_id: str | None = None) -> dict:
         result["title_prop"] = title_prop
 
         # 최근 5개 페이지
-        resp  = client.databases.query(
-            database_id=db_id,
+        recent = _notion_query(
+            db_id,
             sorts=[{"timestamp": "created_time", "direction": "descending"}],
             page_size=5,
         )
-        for page in resp.get("results", []):
+        for page in recent:
             props      = page.get("properties", {})
             title_rich = props.get(title_prop, {}).get("title", [])
             title_text = "".join(r.get("plain_text", "") for r in title_rich)
@@ -707,27 +737,25 @@ def fetch_daily_from_notion(date_str: str) -> dict | None:
     # ── 1차: Date 속성 필터 ───────────────────────────────────────────────────
     if date_prop_name:
         try:
-            resp  = client.databases.query(
-                database_id=db_id,
-                filter={"property": date_prop_name, "date": {"equals": date_str}},
+            pages = _notion_query(
+                db_id,
+                filter_body={"property": date_prop_name, "date": {"equals": date_str}},
                 sorts=[{"timestamp": "created_time", "direction": "descending"}],
                 page_size=5,
             )
-            pages = resp.get("results", [])
             logger.info("1차(Date 필터 %s=%s): %d건", date_prop_name, date_str, len(pages))
         except Exception as e:
             logger.warning("1차 Date 필터 실패: %s", e)
 
-    # ── 2차: 제목 contains 필터 (API) ────────────────────────────────────────
+    # ── 2차: 제목 contains 필터 ──────────────────────────────────────────────
     if not pages:
         try:
-            resp  = client.databases.query(
-                database_id=db_id,
-                filter={"property": title_prop, "title": {"contains": date_str}},
+            pages = _notion_query(
+                db_id,
+                filter_body={"property": title_prop, "title": {"contains": date_str}},
                 sorts=[{"timestamp": "created_time", "direction": "descending"}],
                 page_size=5,
             )
-            pages = resp.get("results", [])
             logger.info("2차(제목 contains '%s'): %d건", date_str, len(pages))
         except Exception as e:
             logger.warning("2차 제목 필터 실패: %s", e)
@@ -735,12 +763,11 @@ def fetch_daily_from_notion(date_str: str) -> dict | None:
     # ── 3차: 최근 30개 페이지 직접 스캔 (안전망) ─────────────────────────────
     if not pages:
         try:
-            resp       = client.databases.query(
-                database_id=db_id,
+            all_recent = _notion_query(
+                db_id,
                 sorts=[{"timestamp": "created_time", "direction": "descending"}],
                 page_size=30,
             )
-            all_recent = resp.get("results", [])
             logger.info("3차 스캔: DB 최근 %d개 페이지 검사 중", len(all_recent))
 
             # date_str 변형 목록: "2026-05-10" → "26-05-10" / "20260510" 등 허용
