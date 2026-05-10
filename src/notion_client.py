@@ -1,7 +1,10 @@
 """Notion API를 통해 분석 결과를 DB 페이지로 저장합니다."""
 import logging
 import os
-from datetime import datetime, timezone
+import re
+from datetime import datetime, timedelta, timezone
+
+KST = timezone(timedelta(hours=9))
 
 from notion_client import Client
 from notion_client.errors import APIResponseError
@@ -25,6 +28,49 @@ def _get_client() -> Client:
 def _rich_text(content: str) -> list[dict]:
     """Notion rich_text 포맷. 2000자 초과 시 자름."""
     return [{"type": "text", "text": {"content": content[:2000]}}]
+
+
+def _rich_text_with_links(text: str) -> list[dict]:
+    """URL 패턴을 '클릭' 하이퍼링크로 변환한 Notion rich_text."""
+    URL_PAT = re.compile(
+        r'\[(?:출처|링크|Source|참조)[:\s]*(https?://[^\]]+)\]'
+        r'|(https?://\S{15,})'
+    )
+    result: list[dict] = []
+    last = 0
+    for m in URL_PAT.finditer(text):
+        url = (m.group(1) or m.group(2) or "").strip()
+        before = text[last:m.start()].strip()
+        if before:
+            result.append({"type": "text", "text": {"content": before + " "}})
+        if url:
+            result.append({"type": "text",
+                           "text": {"content": "클릭", "link": {"url": url}},
+                           "annotations": {"color": "blue", "underline": True}})
+        result.append({"type": "text", "text": {"content": " "}})
+        last = m.end()
+    tail = text[last:].strip()
+    if tail:
+        result.append({"type": "text", "text": {"content": tail[:1900]}})
+    return result or [{"type": "text", "text": {"content": text[:2000]}}]
+
+
+def _extract_summary_text(analysis: dict) -> str:
+    """핵심 요약 섹션에서 첫 3개 불릿 추출 → 요약 컬럼용."""
+    sections = analysis.get("sections", {})
+    for title, content in sections.items():
+        if any(k in title for k in ("핵심 요약", "요약", "Summary")):
+            bullets = []
+            for line in content.split("\n"):
+                s = line.strip().lstrip("-•·▪▸*").strip()
+                s = re.sub(r"\[(?:출처|링크)[:\s]*https?://[^\]]+\]", "", s).strip()
+                s = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", s)
+                if s:
+                    bullets.append(s[:200])
+                if len(bullets) >= 3:
+                    break
+            return " | ".join(bullets)
+    return ""
 
 
 def _paragraph_blocks(text: str) -> list[dict]:
@@ -182,11 +228,18 @@ def _build_blocks(analysis: dict) -> list[dict]:
                     blocks.append(_image_block(wl_url))
 
             if content.strip():
-                # 긴 섹션은 bullet 처리
-                bullets = _parse_bullets(content)
+                is_summary = any(k in title for k in ("핵심 요약", "요약", "Summary"))
+                bullets = _parse_bullets(content, keep_links=is_summary)
                 if bullets:
                     for b in bullets:
-                        blocks.append(_bullet_block(b))
+                        if isinstance(b, list):  # rich_text with links
+                            blocks.append({
+                                "object": "block",
+                                "type": "bulleted_list_item",
+                                "bulleted_list_item": {"rich_text": b},
+                            })
+                        else:
+                            blocks.append(_bullet_block(b))
                 else:
                     blocks.extend(_paragraph_blocks(content))
 
@@ -207,21 +260,26 @@ def _build_blocks(analysis: dict) -> list[dict]:
     return blocks
 
 
-def _parse_bullets(content: str) -> list[str]:
-    """섹션 내용에서 불릿 항목 추출."""
-    import re
-    lines = []
+def _parse_bullets(content: str, keep_links: bool = False) -> list:
+    """
+    섹션 내용에서 불릿 항목 추출.
+    keep_links=True: URL을 유지 (핵심 요약용 rich_text 변환 대상)
+    반환: list[str] 또는 keep_links=True 시 list[list[dict]] (rich_text 포맷)
+    """
+    result = []
     for raw in content.split("\n"):
         line = raw.strip()
-        # - 또는 • 로 시작하는 줄, 또는 비어있지 않은 짧은 문장
         if line.startswith(("-", "•", "·", "▪", "▸", "*")):
             cleaned = line.lstrip("-•·▪▸*").strip()
-            # 마크다운 링크 제거
-            cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
             cleaned = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", cleaned)
-            if cleaned:
-                lines.append(cleaned[:1900])
-    return lines
+            if not cleaned:
+                continue
+            if keep_links:
+                result.append(_rich_text_with_links(cleaned))
+            else:
+                cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
+                result.append(cleaned[:1900])
+    return result
 
 
 def _get_title_prop_name(client: Client, db_id: str) -> str:
@@ -253,15 +311,28 @@ def _build_properties(title_prop: str, title: str, analysis: dict,
     props: dict = {
         title_prop: {"title": _rich_text(title)},
     }
-    if "Date" in all_props:
-        props["Date"] = {"date": {"start": date_str}}
+    # ── 날짜 (Date 또는 날짜 속성) ──────────────────────────────
+    for date_key in ("Date", "날짜", "date"):
+        if date_key in all_props:
+            props[date_key] = {"date": {"start": date_str}}
+            break
+    # ── 리포트 타입 ──────────────────────────────────────────────
     if "Type" in all_props:
         props["Type"] = {"select": {"name": report_type}}
+    # ── 키워드 ───────────────────────────────────────────────────
     if "Keywords" in all_props:
         props["Keywords"] = {"multi_select": _safe_kw_list(
             analysis.get("keywords_found", []))}
+    # ── 기사 수 ──────────────────────────────────────────────────
     if "Articles" in all_props:
         props["Articles"] = {"number": analysis.get("article_count", 0)}
+    # ── 요약 (사용자가 Notion DB에 추가한 경우) ──────────────────
+    for summary_key in ("요약", "Summary", "summary"):
+        if summary_key in all_props:
+            summary = _extract_summary_text(analysis)
+            if summary:
+                props[summary_key] = {"rich_text": _rich_text(summary[:2000])}
+            break
     return props
 
 
@@ -344,10 +415,10 @@ def save_daily_to_notion(analysis: dict) -> str:
         raise ValueError("NOTION_DAILY_DB_ID 환경변수가 없습니다.")
 
     client   = _get_client()
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    date_str = datetime.now(KST).strftime("%Y-%m-%d")   # KST 기준 날짜
     if analysis.get("date"):
         date_str = analysis["date"]
-    title    = f"[Daily] {date_str} AI/Semiconductor News — Automotive/Humanoid/Storage"
+    title    = f"[Daily] {date_str} AI/Semiconductor News"   # 짧은 타이틀
     blocks   = _build_blocks(analysis)
 
     logger.info("Notion 페이지 생성 중 (블록 %d개)...", len(blocks))

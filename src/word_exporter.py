@@ -7,8 +7,14 @@ Word (.docx) 보고서 생성기.
 """
 import io
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+KST = timezone(timedelta(hours=9))
+
+
+def _now_kst() -> str:
+    return datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -77,6 +83,7 @@ def _heading(doc: Document, text: str, level: int = 1,
         run = p.add_run(text)
     run.font.color.rgb = color
     run.font.bold = True
+    run.font.size = Pt(16) if level == 1 else Pt(14)   # H1=16, H2=14
 
 
 def _caption(doc: Document, text: str) -> None:
@@ -102,19 +109,73 @@ def _embed_image(doc: Document, img_bytes: bytes,
         _caption(doc, caption)
 
 
+def _add_hyperlink(para, url: str, text: str = "클릭") -> None:
+    """Word 단락에 하이퍼링크 삽입 (XML 직접 조작)."""
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    try:
+        r_id = para.part.relate_to(url, RT.HYPERLINK, is_external=True)
+    except Exception:
+        para.add_run(f" [{text}]")
+        return
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(docx_qn("r:id"), r_id)
+    run_elem = OxmlElement("w:r")
+    rpr = OxmlElement("w:rPr")
+    col = OxmlElement("w:color")
+    col.set(docx_qn("w:val"), "0096C7")
+    rpr.append(col)
+    u = OxmlElement("w:u")
+    u.set(docx_qn("w:val"), "single")
+    rpr.append(u)
+    run_elem.append(rpr)
+    t = OxmlElement("w:t")
+    t.text = text
+    run_elem.append(t)
+    hyperlink.append(run_elem)
+    para._p.append(hyperlink)
+
+
 def _section_bullets(doc: Document, content: str,
-                     accent: RGBColor = C_NAVY) -> None:
-    """섹션 내용 → 불릿 단락 변환."""
+                     accent: RGBColor = C_NAVY,
+                     with_links: bool = False) -> None:
+    """섹션 내용 → 불릿 단락 변환. with_links=True 이면 URL을 '클릭' 하이퍼링크로."""
+    url_pattern = re.compile(
+        r'\[(?:출처|링크|Source|참조)[:\s]*(https?://[^\]]+)\]'
+        r'|(https?://\S{15,})'
+    )
     for raw in content.split("\n"):
-        line = _clean(raw.strip().lstrip("-•·▪▸").strip())
-        if not line:
+        stripped = raw.strip().lstrip("-•·▪▸*").strip()
+        if not stripped:
             continue
         p = doc.add_paragraph(style="List Bullet")
-        run = p.add_run(line)
-        run.font.size = Pt(10)
-        run.font.color.rgb = C_TEXT
-        p.paragraph_format.space_after = Pt(3)
+        p.paragraph_format.space_after  = Pt(3)
         p.paragraph_format.space_before = Pt(2)
+
+        if with_links:
+            # URL 패턴 기준으로 텍스트 분할 → 일반 run + 하이퍼링크 run 교차 삽입
+            last = 0
+            for m in url_pattern.finditer(stripped):
+                url = (m.group(1) or m.group(2) or "").strip()
+                before = stripped[last:m.start()]
+                clean_before = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", before).strip()
+                if clean_before:
+                    run = p.add_run(clean_before + " ")
+                    run.font.size = Pt(12)
+                    run.font.color.rgb = C_TEXT
+                if url:
+                    _add_hyperlink(p, url, "클릭")
+                last = m.end()
+            tail = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1",
+                          stripped[last:]).strip()
+            if tail:
+                run = p.add_run(tail)
+                run.font.size = Pt(12)
+                run.font.color.rgb = C_TEXT
+        else:
+            line = _clean(stripped)
+            run = p.add_run(line)
+            run.font.size = Pt(12)   # 본문 12pt
+            run.font.color.rgb = C_TEXT
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -143,7 +204,7 @@ def generate_word(analysis: dict, output_dir: str = "/tmp") -> str:
     sections    = analysis.get("sections", {})
     week_label  = analysis.get("week_label", "")
     subtitle    = week_label or date_str
-    now_utc     = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now_kst     = _now_kst()
 
     doc = Document()
 
@@ -192,7 +253,7 @@ def generate_word(analysis: dict, output_dir: str = "/tmp") -> str:
         f"수집 기사: {art_count}건",
         f"핵심 키워드: {', '.join(keywords[:6])}",
         f"AI 기여 모델: {attribution}",
-        f"생성 일시: {now_utc}",
+        f"생성 일시: {now_kst}",
     ]
     for line in meta_lines:
         p_m = doc.add_paragraph()
@@ -279,8 +340,9 @@ def generate_word(analysis: dict, output_dir: str = "/tmp") -> str:
         p_sec.paragraph_format.space_before = Pt(14)
         p_sec.paragraph_format.space_after  = Pt(6)
 
-        # 섹션 내용 → 불릿
-        _section_bullets(doc, sec_content, accent=accent)
+        # 핵심 요약 섹션만 하이퍼링크 활성화
+        is_summary = any(k in sec_title for k in ("핵심 요약", "요약", "Summary"))
+        _section_bullets(doc, sec_content, accent=accent, with_links=is_summary)
         doc.add_paragraph()
 
     doc.add_page_break()
@@ -310,7 +372,7 @@ def generate_word(analysis: dict, output_dir: str = "/tmp") -> str:
     p_foot.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r_foot = p_foot.add_run(
         f"Generated by Multi-LLM Strategy Analyzer\n"
-        f"AI 기여: {attribution}  |  {now_utc}"
+        f"AI 기여: {attribution}  |  {now_kst}"
     )
     r_foot.font.size = Pt(8)
     r_foot.font.italic = True

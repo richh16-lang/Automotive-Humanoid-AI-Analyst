@@ -15,7 +15,9 @@ Daily 파이프라인 — 전략 의사결정 지원 시스템.
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+KST = timezone(timedelta(hours=9))
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -44,7 +46,7 @@ def run_daily() -> int:
     from src.notion_client     import save_daily_to_notion
     from src.email_sender      import send_daily_email
 
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    date_str = datetime.now(KST).strftime("%Y-%m-%d")
     logger.info("====== Daily Pipeline 시작: %s ======", date_str)
 
     # ── 1. 뉴스 수집 ─────────────────────────────────────────
