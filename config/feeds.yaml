@@ -45,8 +45,14 @@ keywords:
   - "LPDDR5X"
   - "Automotive Memory"
   - UFS
+  - "UFS 4.0"
+  - "UFS 5.0"
   - NVMe
+  - "NVMe automotive"
   - SSD
+  - "automotive SSD"
+  - "automotive grade NAND"
+  - "eMMC 5.1"
   - Kioxia
   - "SK Hynix"
   - Micron
@@ -56,6 +62,10 @@ keywords:
   - "Determinism in Storage"
   - "AEC-Q100"
   - "Data logging write amplification"
+  - "flash endurance"
+  - "storage latency determinism"
+  - "ONFI"
+  - "JEDEC storage"
 
 
 rss_feeds:
@@ -149,6 +159,18 @@ rss_feeds:
     url: "https://news.google.com/rss/search?q=%22Determinism+in+Storage%22+OR+%22AEC-Q100%22+automotive+storage&hl=en&gl=US&ceid=US:en"
     category: storage
 
+  - name: "Google News - UFS 4.0 5.0 Automotive Storage"
+    url: "https://news.google.com/rss/search?q=%22UFS+4.0%22+OR+%22UFS+5.0%22+automotive+storage+OR+semiconductor&hl=en&gl=US&ceid=US:en"
+    category: storage
+
+  - name: "Google News - Automotive Grade NAND Flash Endurance"
+    url: "https://news.google.com/rss/search?q=%22automotive+SSD%22+OR+%22automotive+grade+NAND%22+OR+%22flash+endurance%22+TBW+WAF&hl=en&gl=US&ceid=US:en"
+    category: storage
+
+  - name: "Google News - JEDEC ONFI Storage Standard"
+    url: "https://news.google.com/rss/search?q=JEDEC+OR+ONFI+storage+standard+UFS+NVMe+automotive+2025&hl=en&gl=US&ceid=US:en"
+    category: storage
+
   - name: "Google News - Kioxia Micron NAND"
     url: "https://news.google.com/rss/search?q=Kioxia+OR+Micron+NAND+automotive+storage&hl=en&gl=US&ceid=US:en"
     category: memory
@@ -225,6 +247,22 @@ rss_feeds:
 
   - name: "CrossRef - Zonal Architecture × Centralized Storage"
     url: "https://news.google.com/rss/search?q=%22Zonal+Architecture%22+%22Centralized+Storage%22+OR+%22shared+storage%22+automotive&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - AP SoC × UFS NVMe Storage Bottleneck"
+    url: "https://news.google.com/rss/search?q=automotive+SoC+%22UFS%22+OR+%22NVMe%22+storage+bottleneck+OR+%22I%2FO+budget%22&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Snapdragon × UFS Automotive Storage"
+    url: "https://news.google.com/rss/search?q=Snapdragon+automotive+%22UFS%22+OR+%22NVMe+storage%22+SoC+memory&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - LPDDR6 × Storage I/O Budget"
+    url: "https://news.google.com/rss/search?q=%22LPDDR6%22+OR+%22LPDDR5X%22+storage+%22I%2FO%22+OR+bandwidth+automotive+SoC&hl=en&gl=US&ceid=US:en"
+    category: crossref
+
+  - name: "CrossRef - Humanoid Robot × Storage Workload"
+    url: "https://news.google.com/rss/search?q=humanoid+robot+storage+OR+%22data+logging%22+OR+%22flash%22+OR+%22NVMe%22+inference&hl=en&gl=US&ceid=US:en"
     category: crossref
 
 
@@ -391,6 +429,14 @@ rss_feeds:
   - name: "Tom's Hardware"
     url: "https://www.tomshardware.com/feeds/all"
     category: semiconductor
+
+  - name: "StorageReview"
+    url: "https://www.storagereview.com/feed/"
+    category: storage
+
+  - name: "The SSD Review"
+    url: "https://www.thessdreview.com/feed/"
+    category: storage
 
   - name: "The Robot Report"
     url: "https://www.therobotreport.com/feed/"

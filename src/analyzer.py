@@ -68,6 +68,7 @@ ANALYSIS_TEMPLATE = """\
 - 기술적 진보 수준: 점진적 개선 vs 패러다임 전환 여부 판단
 - 핵심 변화 포인트: 아키텍처, 인터페이스(PCIe Gen6/CXL), 전력, 성능
 - 데이터 이동 경로 변화 및 대역폭 영향
+- SoC/AP 아키텍처 변화가 Storage 인터페이스(UFS 4.0/5.0, NVMe PCIe Gen6) 요구 사양에 미치는 영향
 - 실현 가능성 및 양산 시점 예측
 
 ## 3. AI Agent 아키텍처 영향
@@ -80,6 +81,9 @@ On-device AI와 Cloud AI 구조 변화를 추적하세요.
   (예: 컨텍스트 2배 → KV Cache 스토리지 요구량 X배 증가 추정)
 - Agentic AI / Physical AI 관점의 아키텍처 시사점
 - Edge 추론 vs 클라우드 오프로드 결정 기준 변화
+- **[AP→DRAM→Storage 연쇄 분석]** 오늘 뉴스에 SoC/AP 발표·변화가 있는 경우에만 작성:
+  AP 메모리 인터페이스 결정(LPDDR 세대) → DRAM 대역폭 요구량(GB/s) → 잔여 Storage I/O 버짓 →
+  UFS 4.0/5.0 vs NVMe PCIe Gen6 선택 기준 도출 (해당 뉴스 없으면 이 항목 생략)
 
 ## 4. 비즈니스 영향
 - 관련 기업 시장 점유율 변화 가능성 (기업명 명시)
@@ -101,10 +105,20 @@ On-device AI와 Cloud AI 구조 변화를 추적하세요.
 - 불확실성 요인: 규제(UN-R155, ISO 26262), 공급망, 기술 장벽
 
 ## 7. 메모리·스토리지 시장 영향
-- HBM, LPDDR5x, UFS 4.0, PCIe Gen6 NVMe SSD 수요 변화
-- 용량·대역폭·지연시간(Latency) 요구사항 변화 (수치 포함)
-- 삼성전자, SK하이닉스, Micron, Kioxia 등 업체별 영향
+**[DRAM 파트]**
+- HBM(AI 서버), LPDDR5X/6(차량·엣지) 수요 변화 및 대역폭 요구사항 (수치 포함)
+- Samsung, SK하이닉스, Micron DRAM 포지션 변화
+
+**[Storage 파트 — 반드시 DRAM과 분리하여 작성]**
+- UFS 4.0/5.0, PCIe Gen6 NVMe SSD 차량용 수요 변화
+- 용량·랜덤 Read·Write 속도·지연시간 요구사항 변화 (수치 포함)
+- Kioxia, Samsung, Micron, SK하이닉스 차량용 NAND/SSD 포지션 변화
+- TLC vs QLC 선택 기준 변화 (내구성·비용 트레이드오프)
 - NAND vs DRAM 투자 우선순위 변화 시사점
+
+**[AP→DRAM→Storage 연결]**
+- 오늘 뉴스 기반으로 SoC 세대 변화가 DRAM 스펙을 바꾸고, 그것이 Storage 선택에 미치는 영향 1-2줄 요약
+  (해당 뉴스 없으면 생략)
 
 ## 8. 스토리지 Workload 심층 분석
 **반드시 수치적 추론을 포함하세요.**
