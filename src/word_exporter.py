@@ -23,6 +23,7 @@ from docx.oxml.ns import qn as docx_qn
 from docx.shared import Inches, Pt, RGBColor
 
 # ── 색상 ─────────────────────────────────────────────────────────────────────
+C_DARK_BLUE = RGBColor(0x00, 0x21, 0x47)   # #002147 — 인쇄용 고무게감 헤더
 C_NAVY  = RGBColor(0x02, 0x3E, 0x8A)
 C_CYAN  = RGBColor(0x00, 0xB4, 0xD8)
 C_DARK  = RGBColor(0x0D, 0x1B, 0x2A)
@@ -75,7 +76,8 @@ def _cell_text(cell, text: str, bold: bool = False,
 
 
 def _heading(doc: Document, text: str, level: int = 1,
-             color: RGBColor = C_NAVY) -> None:
+             color: RGBColor = C_DARK_BLUE) -> None:
+    """H1 기본색 = #002147(Dark Blue), H2 이하는 호출 시 accent 색 직접 전달."""
     p = doc.add_heading(text, level=level)
     if p.runs:
         run = p.runs[0]
@@ -84,6 +86,10 @@ def _heading(doc: Document, text: str, level: int = 1,
     run.font.color.rgb = color
     run.font.bold = True
     run.font.size = Pt(16) if level == 1 else Pt(14)   # H1=16, H2=14
+    # H1 단락 앞뒤 여백
+    if level == 1:
+        p.paragraph_format.space_before = Pt(14)
+        p.paragraph_format.space_after  = Pt(8)
 
 
 def _caption(doc: Document, text: str) -> None:
@@ -148,8 +154,8 @@ def _section_bullets(doc: Document, content: str,
         if not stripped:
             continue
         p = doc.add_paragraph(style="List Bullet")
-        p.paragraph_format.space_after  = Pt(3)
-        p.paragraph_format.space_before = Pt(2)
+        p.paragraph_format.space_after  = Pt(12)   # 불릿 아래 여백 (빽빽함 해소)
+        p.paragraph_format.space_before = Pt(4)
 
         if with_links:
             # URL 패턴 기준으로 텍스트 분할 → 일반 run + 하이퍼링크 run 교차 삽입
@@ -337,8 +343,8 @@ def generate_word(analysis: dict, output_dir: str = "/tmp") -> str:
             run_sec = p_sec.add_run(sec_title)
         run_sec.font.color.rgb = accent
         run_sec.font.bold = True
-        p_sec.paragraph_format.space_before = Pt(14)
-        p_sec.paragraph_format.space_after  = Pt(6)
+        p_sec.paragraph_format.space_before = Pt(16)   # 섹션 간 여백 확대
+        p_sec.paragraph_format.space_after  = Pt(8)
 
         # 핵심 요약 섹션만 하이퍼링크 활성화
         is_summary = any(k in sec_title for k in ("핵심 요약", "요약", "Summary"))

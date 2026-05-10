@@ -35,15 +35,26 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout,
 # 페이지 설정
 # ══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(
-    page_title="Inchang's Agent - Edge AI (Auto&Humanoid) 분석",
+    page_title="Inchang's Agent — Edge AI Intelligence",
     page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ── 글로벌 CSS (다크 모드 + 모바일 최적화) ──────────────────────────────────
+# ── 글로벌 CSS (다크 Glassmorphism + Inter/Pretendard 폰트) ──────────────────
 st.markdown("""
 <style>
+/* ── Google Fonts & Pretendard ────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+
+/* ── 전체 폰트 (Inter → Pretendard → NanumGothic 순 적용) ── */
+html, body, [class*="css"], .stMarkdown, p, span, div,
+h1, h2, h3, h4, button, input, select, textarea {
+    font-family: 'Inter', 'Pretendard', 'NanumGothic',
+                 -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
 /* ── 배경 ─────────────────────────────────── */
 .stApp { background-color: #0D1B2A; }
 .block-container { padding-top: 1.2rem; padding-bottom: 2rem; }
@@ -66,20 +77,60 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
     transform: translateY(-1px);
 }
 
-/* ── 섹션 카드 (기본) ─────────────────────── */
-.sec-card {
-    background: #162133; border-left: 4px solid #00B4D8;
-    border-radius: 8px; padding: 16px 20px; margin-bottom: 14px;
+/* ── 보조 버튼 hover 효과 ─────────────────── */
+div[data-testid="stButton"] > button:not([kind="primary"]) {
+    border-radius: 8px !important;
+    transition: all 0.2s ease !important;
 }
+div[data-testid="stButton"] > button:not([kind="primary"]):hover {
+    border-color: #00B4D8 !important;
+    color: #00B4D8 !important;
+    transform: translateY(-1px);
+}
+
+/* ── Glassmorphism 메트릭 카드 + hover 애니메이션 ── */
+[data-testid="stMetric"] {
+    background: rgba(30, 41, 59, 0.85) !important;
+    border: 1px solid #334155 !important;
+    border-radius: 12px !important;
+    padding: 18px 20px !important;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
+    transition: all 0.25s ease !important;
+    backdrop-filter: blur(8px);
+}
+[data-testid="stMetric"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.4),
+                0 0 0 1px rgba(0,180,216,0.3) !important;
+    border-color: rgba(0,180,216,0.5) !important;
+}
+[data-testid="stMetricValue"] { color: #00B4D8 !important; font-weight: 800 !important; }
+[data-testid="stMetricLabel"] { color: #78909C !important; }
+
+/* ── 섹션 카드 (Glassmorphism) ────────────── */
+.sec-card {
+    background: rgba(30, 41, 59, 0.80);
+    border: 1px solid #334155;
+    border-left: 4px solid #00B4D8;
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 14px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    backdrop-filter: blur(4px);
+    transition: box-shadow 0.2s ease;
+}
+.sec-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.4); }
 .sec-title { color: #00B4D8; font-size: 15px; font-weight: 700; margin-bottom: 8px; }
 .sec-body  { color: #CAE9FF; font-size: 13.5px; line-height: 1.85; }
 
-/* ── 섹션 7·8 강조 카드 ───────────────────── */
+/* ── 섹션 7·8 강조 카드 (Glassmorphism) ──── */
 .sec-highlight {
-    background: linear-gradient(135deg, #0A1F3A 0%, #162133 100%);
-    border: 2px solid #00B4D8; border-radius: 10px;
+    background: rgba(10, 31, 58, 0.90);
+    border: 1px solid #334155;
+    border-left: 3px solid #00B4D8;
+    border-radius: 0 10px 10px 0;
     padding: 18px 22px; margin-bottom: 14px;
-    box-shadow: 0 0 18px rgba(0,180,216,0.18);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35),
+                0 0 20px rgba(0,180,216,0.06);
+    backdrop-filter: blur(6px);
 }
 .sec-highlight-title {
     color: #00E5FF; font-size: 15px; font-weight: 800;
@@ -91,13 +142,18 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
     border-radius: 10px; margin-left: 8px; vertical-align: middle;
 }
 
-/* ── 기사 카드 ────────────────────────────── */
+/* ── 기사 카드 (Glassmorphism) ────────────── */
 .art-card {
-    background: #1A2840; border: 1px solid #1E3A5F;
-    border-radius: 8px; padding: 12px 16px; margin-bottom: 8px;
-    transition: border-color 0.2s;
+    background: rgba(26, 40, 64, 0.85); border: 1px solid #1E3A5F;
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 8px;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s ease;
 }
-.art-card:hover { border-color: #00B4D8; }
+.art-card:hover {
+    border-color: #00B4D8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
 .art-src   { color: #00B4D8; font-size: 10.5px; font-weight: 700;
              text-transform: uppercase; letter-spacing: 0.6px; }
 .art-title { color: #E8F4FD; font-size: 13.5px; font-weight: 500; margin: 4px 0; }
@@ -111,8 +167,9 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
 .llm-log {
     background: #0A1628; border: 1px solid #1E3A5F;
     border-radius: 6px; padding: 10px 14px; font-size: 12px;
-    color: #546E7A; font-family: monospace; max-height: 160px;
-    overflow-y: auto;
+    color: #546E7A;
+    font-family: 'Fira Code', 'Consolas', 'Monaco', monospace !important;
+    max-height: 160px; overflow-y: auto;
 }
 .log-ok   { color: #00E676; }
 .log-warn { color: #FFB300; }
@@ -127,19 +184,17 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
 /* ── 탭 ───────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] { gap: 6px; }
 .stTabs [data-baseweb="tab"] {
-    background: #162133; border-radius: 6px 6px 0 0;
+    background: rgba(22, 33, 51, 0.9); border-radius: 6px 6px 0 0;
     color: #78909C; font-weight: 600; padding: 8px 18px;
+    transition: all 0.2s ease;
 }
+.stTabs [data-baseweb="tab"]:hover { color: #00B4D8 !important; }
 .stTabs [aria-selected="true"] {
     background: #00B4D8 !important; color: #0D1B2A !important;
 }
 
 /* ── 구분선 ───────────────────────────────── */
 hr { border-color: #1E3A5F; }
-
-/* ── 메트릭 ───────────────────────────────── */
-[data-testid="stMetricValue"] { color: #00B4D8 !important; }
-[data-testid="stMetricLabel"] { color: #78909C !important; }
 
 /* ── 모바일 반응형 ────────────────────────── */
 @media (max-width: 768px) {
@@ -253,7 +308,8 @@ def render_sidebar() -> dict:
             "<span style='font-size:28px'>🔬</span><br>"
             "<span style='color:#00B4D8;font-weight:800;font-size:18px'>"
             "Inchang's Agent</span><br>"
-            "<span style='color:#90CAE4;font-size:13px;font-weight:600'>Edge AI (Auto&Humanoid) 분석</span>"
+            "<span style='color:#90CAE4;font-size:12px;font-weight:600'>"
+            "Edge AI (Auto &amp; Humanoid) Intelligence</span>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -507,10 +563,14 @@ def render_strategy_dashboard(analysis: dict) -> None:
         top3 = []
 
     st.markdown(
-        "<div style='background:linear-gradient(135deg,#0A1F3A,#162133);"
-        "border:1px solid #00B4D8;border-radius:10px;padding:18px 22px;margin-bottom:16px'>"
-        "<div style='color:#00E5FF;font-size:14px;font-weight:800;margin-bottom:12px'>"
-        "⚡ 오늘의 3대 핵심 전략 인사이트</div>",
+        "<div style='background:#0F172A;"
+        "border-left:5px solid #00B4D8;"
+        "border-radius:0 10px 10px 0;"
+        "padding:20px 24px;margin-bottom:16px;"
+        "box-shadow:0 4px 14px rgba(0,0,0,0.45)'>"
+        "<div style='color:#00E5FF;font-size:1.1rem;font-weight:800;"
+        "margin-bottom:12px;letter-spacing:0.2px'>"
+        "💡 오늘의 3대 핵심 전략 인사이트</div>",
         unsafe_allow_html=True,
     )
     if top3:
@@ -962,16 +1022,29 @@ def main() -> None:
     # 사이드바
     cfg = render_sidebar()
 
-    # ── 헤더 ──────────────────────────────────────────────────────────────────
+    # ── 헤더 (그라데이션 배경 + 최종 업데이트 시각) ───────────────────────────
+    _last_run = st.session_state.get("last_run", "")
+    _last_run_html = (
+        f"<div style='color:rgba(202,233,255,0.45);font-size:11px;margin-top:8px;"
+        f"font-weight:500'>🕐 최종 업데이트: "
+        f"<strong style='color:#00B4D8'>{_last_run}</strong></div>"
+    ) if _last_run else ""
+
     st.markdown(
-        "<h1 style='color:#00B4D8;font-size:28px;font-weight:900;"
-        "margin-bottom:2px;letter-spacing:-0.5px'>"
-        "🔬 Inchang's Agent - Edge AI (Auto&amp;Humanoid) 분석"
-        "</h1>"
-        "<p style='color:#546E7A;font-size:13px;margin-top:0;margin-bottom:8px'>"
-        "AI/Semiconductor Daily News &nbsp;|&nbsp; "
-        "Automotive / Humanoid / Storage Intelligence"
-        "</p>",
+        f"<div style='background:linear-gradient(90deg,#0f172a 0%,#1e293b 100%);"
+        f"border:1px solid #334155;border-radius:14px;"
+        f"padding:24px 28px;margin-bottom:14px;"
+        f"box-shadow:0 4px 12px rgba(0,0,0,0.35)'>"
+        f"<h1 style='color:#00B4D8;font-size:26px;font-weight:900;"
+        f"margin:0 0 4px;letter-spacing:-0.4px;line-height:1.2'>"
+        f"🔬 Inchang's Agent &mdash; Edge AI (Auto &amp; Humanoid) Intelligence"
+        f"</h1>"
+        f"<p style='color:#546E7A;font-size:13px;margin:0;font-weight:500'>"
+        f"AI/Semiconductor Daily News &nbsp;·&nbsp; "
+        f"Automotive / Humanoid / Storage Intelligence"
+        f"</p>"
+        f"{_last_run_html}"
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -1189,7 +1262,7 @@ def main() -> None:
     st.markdown("---")
     st.markdown(
         "<div style='text-align:center;color:#1E3A5F;font-size:11px;padding:8px'>"
-        "Inchang's Agent - Edge AI (Auto&amp;Humanoid) 분석 &nbsp;·&nbsp; "
+        "Inchang's Agent &mdash; Edge AI (Auto &amp; Humanoid) Intelligence &nbsp;·&nbsp; "
         "Multi-LLM: Claude → Gemini → GPT → DeepSeek → Groq → Mistral &nbsp;·&nbsp; "
         "Auto-fallback enabled"
         "</div>",
