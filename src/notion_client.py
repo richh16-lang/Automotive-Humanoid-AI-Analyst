@@ -819,22 +819,38 @@ def fetch_daily_from_notion(date_str: str) -> dict | None:
     page_url = page.get("url", "")
     props    = page.get("properties", {})
 
-    # 키워드
+    # ── Notion DB 컬럼에서 키워드·기사 수 읽기 ──────────────────────────────
     keywords: list[str] = []
     kw_prop = props.get("Keywords", {})
     if kw_prop.get("type") == "multi_select":
         keywords = [opt["name"] for opt in kw_prop.get("multi_select", [])]
 
-    # 기사 수
     article_count = 0
     art_prop = props.get("Articles", {})
     if art_prop.get("type") == "number" and art_prop.get("number") is not None:
         article_count = int(art_prop["number"])
 
-    # 페이지 본문 → 섹션 파싱
+    # ── 페이지 본문 → 섹션 파싱 ──────────────────────────────────────────────
     logger.info("Notion 페이지 블록 추출 중: %s", page_id)
     raw_text = _extract_page_text(client, page_id)
     sections = _parse_raw_to_sections(raw_text)
+
+    # ── raw 텍스트에서 메타 정보 보완 (DB 컬럼 없을 때 폴백) ─────────────────
+    if article_count == 0:
+        m = re.search(r'수집 기사[:\s]*(\d+)건', raw_text)
+        if m:
+            article_count = int(m.group(1))
+
+    if not keywords:
+        m = re.search(r'키워드[:\s]*([^\n]{3,200})', raw_text)
+        if m:
+            keywords = [k.strip() for k in m.group(1).split(',') if k.strip()][:12]
+
+    # ── raw 텍스트에서 AI 기여 모델 복원 ────────────────────────────────────
+    attribution = f"Notion 캐시 ({date_str})"
+    m = re.search(r'AI[:\s]+([^\n|]{5,80})', raw_text)
+    if m:
+        attribution = m.group(1).strip().rstrip('|').strip()
 
     return {
         "date":              date_str,
@@ -844,8 +860,9 @@ def fetch_daily_from_notion(date_str: str) -> dict | None:
         "raw":               raw_text,
         "notion_url":        page_url,
         "provider":          "Notion",
-        "model_attribution": f"Notion 캐시 ({date_str})",
+        "model_attribution": attribution,
         "source_urls":       [],
         "filter_meta":       {"used_groq": False},
         "research_meta":     {"used_gemini": False},
+        "from_notion_cache": True,   # 대시보드에서 캐시 여부 구분용
     }

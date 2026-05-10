@@ -511,11 +511,13 @@ def render_analysis_sections(analysis: dict) -> None:
                 unsafe_allow_html=True,
             )
         else:
-            # ── 일반 섹션 ──────────────────────────────────────────────────
-            with st.expander(f"**{title}**", expanded=True):
+            # ── 일반 섹션 (expander 라벨은 plain text — 마크다운 불지원) ────
+            with st.expander(title, expanded=True):
                 st.markdown(
                     f"<div style='border-left:3px solid {color};"
                     f"padding:10px 14px;'>"
+                    f"<div style='color:{color};font-size:14px;font-weight:700;"
+                    f"margin-bottom:8px'>{title}</div>"
                     f"<div class='sec-body'>{html_body}</div>"
                     f"</div>",
                     unsafe_allow_html=True,
@@ -525,9 +527,24 @@ def render_analysis_sections(analysis: dict) -> None:
 def render_strategy_dashboard(analysis: dict) -> None:
     """임원 보고용 전략 현황판 — 메트릭 / 핵심 인사이트 / 분야별 차트 / 퀵링크."""
     import re
-    articles = analysis.get("articles", [])
-    sections = analysis.get("sections", {})
-    last_run = st.session_state.get("last_run", "-")
+    articles      = analysis.get("articles", [])
+    sections      = analysis.get("sections", {})
+    last_run      = st.session_state.get("last_run", "-")
+    from_notion   = analysis.get("from_notion_cache", False)
+
+    # ── Notion 캐시 배너 ───────────────────────────────────────────────────────
+    if from_notion:
+        notion_url = analysis.get("notion_url", "")
+        notion_link = f' &nbsp;<a href="{notion_url}" target="_blank" style="color:#00B4D8">Notion에서 보기 ↗</a>' if notion_url else ""
+        st.markdown(
+            f"<div style='background:rgba(0,180,216,0.08);border:1px solid #334155;"
+            f"border-left:3px solid #00B4D8;border-radius:6px;"
+            f"padding:8px 14px;margin-bottom:10px;font-size:12px;color:#78909C'>"
+            f"📥 Notion 캐시에서 로드된 데이터 ({analysis.get('date','-')}) — "
+            f"기사 단위 지표(카테고리·Groq 점수)는 재분석 시 확인 가능{notion_link}"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
     # ── Last Updated 바 ────────────────────────────────────────────────────────
     st.markdown(
@@ -540,13 +557,18 @@ def render_strategy_dashboard(analysis: dict) -> None:
     # ── 1. Metric Section ──────────────────────────────────────────────────────
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("📰 수집 기사", f"{analysis.get('article_count', 0)}건")
-    m2.metric("🧠 분석 기사", f"{analysis.get('synthesis_count', analysis.get('article_count',0))}건")
+    m2.metric("🧠 분석 기사",
+              f"{analysis.get('synthesis_count', analysis.get('article_count', 0))}건")
     kws = analysis.get("keywords_found", [])
     m3.metric("🏷 매칭 키워드", f"{len(kws)}개")
-    # 경쟁사 업데이트: company_news / earnings 카테고리 기사 수
-    comp_count = sum(1 for a in articles
-                     if getattr(a, "category", "") in ("company_news", "earnings"))
-    m4.metric("🏢 경쟁사 업데이트", f"{comp_count}건")
+    # 경쟁사 업데이트: 실시간 분석 시에만 유효, Notion 캐시면 "-"
+    if from_notion:
+        m4.metric("🏢 경쟁사 업데이트", "재분석 필요",
+                  help="Notion 캐시에서는 기사 카테고리 정보가 복원되지 않습니다.")
+    else:
+        comp_count = sum(1 for a in articles
+                         if getattr(a, "category", "") in ("company_news", "earnings"))
+        m4.metric("🏢 경쟁사 업데이트", f"{comp_count}건")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -624,6 +646,15 @@ def render_strategy_dashboard(analysis: dict) -> None:
         import pandas as pd
         df = pd.DataFrame({"건수": values}, index=labels)
         st.bar_chart(df, color="#00B4D8", height=220)
+    elif from_notion:
+        st.markdown(
+            "<div style='background:rgba(30,41,59,0.6);border:1px solid #334155;"
+            "border-radius:8px;padding:20px;text-align:center;color:#546E7A;font-size:13px'>"
+            "📥 Notion 캐시 로드 시 기사 카테고리 분포는 표시되지 않습니다.<br>"
+            "<span style='font-size:11px'>▶ 실시간 전략 분석 실행 후 확인 가능</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
     else:
         st.caption("기사 수집 후 표시됩니다.")
 
