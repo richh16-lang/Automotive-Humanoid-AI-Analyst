@@ -257,6 +257,12 @@ def _md_to_html(text: str) -> str:
     import re
 
     # ── 인라인 마크다운 치환 (순서 중요) ─────────────────────────────────────
+    # 0) 고아 ** 정리 — LLM이 줄 끝/줄 처음에 짝 없는 ** 를 남기는 경우
+    #    줄 끝 "text**"  → "text"
+    #    줄 처음 "**text" → "text" (단 "**text**" 는 아래 2단계에서 처리)
+    text = re.sub(r"\*\*$", "", text, flags=re.MULTILINE)      # 줄 끝 고아 **
+    text = re.sub(r"^\*\*(?!\*)", "", text, flags=re.MULTILINE) # 줄 처음 고아 **
+
     # 1) [텍스트](URL) 링크
     text = re.sub(
         r"\[([^\]]+)\]\((https?://[^\)]+)\)",
