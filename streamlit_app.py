@@ -499,7 +499,7 @@ def render_analysis_sections(analysis: dict) -> None:
         html_body = _md_to_html(content)
 
         if _is_highlight_section(title):
-            # ── 7·8번 섹션 강조 스타일 ─────────────────────────────────────
+            # ── 7·8번 섹션 강조 카드 ───────────────────────────────────────
             st.markdown(
                 f"<div class='sec-highlight'>"
                 f"<div class='sec-highlight-title'>"
@@ -511,17 +511,14 @@ def render_analysis_sections(analysis: dict) -> None:
                 unsafe_allow_html=True,
             )
         else:
-            # ── 일반 섹션 (expander 라벨은 plain text — 마크다운 불지원) ────
-            with st.expander(title, expanded=True):
-                st.markdown(
-                    f"<div style='border-left:3px solid {color};"
-                    f"padding:10px 14px;'>"
-                    f"<div style='color:{color};font-size:14px;font-weight:700;"
-                    f"margin-bottom:8px'>{title}</div>"
-                    f"<div class='sec-body'>{html_body}</div>"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
+            # ── 일반 섹션 카드 (st.expander 제거 — arrow 텍스트 렌더링 버그 회피)
+            st.markdown(
+                f"<div class='sec-card'>"
+                f"<div class='sec-title'>{title}</div>"
+                f"<div class='sec-body'>{html_body}</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
 
 def render_strategy_dashboard(analysis: dict) -> None:
