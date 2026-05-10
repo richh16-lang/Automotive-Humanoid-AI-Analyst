@@ -609,9 +609,12 @@ def _parse_raw_to_sections(raw_text: str) -> dict:
 def fetch_daily_from_notion(date_str: str) -> dict | None:
     """
     Notion Daily DB에서 특정 날짜의 분석 페이지를 불러와 analysis dict 반환.
-    1차: '날짜' Date 속성 필터 (정확한 날짜 매칭)
-    2차: 제목에 date_str 포함 여부로 폴백 (구 항목·Date 속성 미설정 시)
-    반환: analysis dict 또는 None (해당 날짜 데이터 없음)
+
+    3단계 조회 전략:
+    1차: '날짜' Date 속성 = date_str 필터
+    2차: 제목 contains date_str 필터 (API 필터)
+    3차: 최근 30개 페이지 직접 스캔 (제목 plain_text 검사 + KST created_time 대조)
+         → API 필터가 예상대로 동작하지 않을 때 안전망
     """
     db_id = os.environ.get("NOTION_DAILY_DB_ID", "").strip()
     if not db_id:
@@ -619,7 +622,7 @@ def fetch_daily_from_notion(date_str: str) -> dict | None:
 
     client = _get_client()
 
-    # ── DB의 실제 속성 목록 확인 ──────────────────────────────────────────────
+    # ── DB 속성 목록 + 타이틀 속성명 확인 ────────────────────────────────────
     try:
         db        = client.databases.retrieve(database_id=db_id)
         all_props = set(db.get("properties", {}).keys())
@@ -630,46 +633,92 @@ def fetch_daily_from_notion(date_str: str) -> dict | None:
     date_prop_name = next(
         (p for p in ("날짜", "Date", "date") if p in all_props), None
     )
+    title_prop = _get_title_prop_name(client, db_id)
+    logger.info("DB 속성: %s | 타이틀 속성: %s | 날짜 속성: %s",
+                all_props, title_prop, date_prop_name)
 
     pages: list = []
 
-    # ── 1차: Date 속성으로 필터 ───────────────────────────────────────────────
+    # ── 1차: Date 속성 필터 ───────────────────────────────────────────────────
     if date_prop_name:
         try:
-            resp = client.databases.query(
+            resp  = client.databases.query(
                 database_id=db_id,
-                filter={
-                    "property": date_prop_name,
-                    "date": {"equals": date_str},
-                },
+                filter={"property": date_prop_name, "date": {"equals": date_str}},
                 sorts=[{"timestamp": "created_time", "direction": "descending"}],
                 page_size=5,
             )
             pages = resp.get("results", [])
-            logger.info("날짜 속성 필터(%s=%s): %d건", date_prop_name, date_str, len(pages))
+            logger.info("1차(Date 필터 %s=%s): %d건", date_prop_name, date_str, len(pages))
         except Exception as e:
-            logger.warning("날짜 속성 필터 실패: %s", e)
+            logger.warning("1차 Date 필터 실패: %s", e)
 
-    # ── 2차: 제목에 날짜 문자열 포함 여부로 폴백 ─────────────────────────────
+    # ── 2차: 제목 contains 필터 (API) ────────────────────────────────────────
     if not pages:
-        title_prop = _get_title_prop_name(client, db_id)
         try:
-            resp = client.databases.query(
+            resp  = client.databases.query(
                 database_id=db_id,
-                filter={
-                    "property": title_prop,
-                    "title": {"contains": date_str},
-                },
+                filter={"property": title_prop, "title": {"contains": date_str}},
                 sorts=[{"timestamp": "created_time", "direction": "descending"}],
                 page_size=5,
             )
             pages = resp.get("results", [])
-            logger.info("제목 포함 필터(%s): %d건", date_str, len(pages))
+            logger.info("2차(제목 contains '%s'): %d건", date_str, len(pages))
         except Exception as e:
-            logger.warning("제목 필터 실패: %s", e)
+            logger.warning("2차 제목 필터 실패: %s", e)
+
+    # ── 3차: 최근 30개 페이지 직접 스캔 (안전망) ─────────────────────────────
+    if not pages:
+        try:
+            resp       = client.databases.query(
+                database_id=db_id,
+                sorts=[{"timestamp": "created_time", "direction": "descending"}],
+                page_size=30,
+            )
+            all_recent = resp.get("results", [])
+            logger.info("3차 스캔: DB 최근 %d개 페이지 검사 중", len(all_recent))
+
+            # date_str 변형 목록: "2026-05-10" → "26-05-10" / "20260510" 등 허용
+            date_variants = {
+                date_str,                          # "2026-05-10"
+                date_str.replace("-", ""),         # "20260510"
+                date_str[2:],                      # "26-05-10"
+            }
+
+            for page in all_recent:
+                props = page.get("properties", {})
+
+                # 타이틀 plain_text 추출
+                title_rich = props.get(title_prop, {}).get("title", [])
+                title_text = "".join(r.get("plain_text", "") for r in title_rich)
+
+                # created_time → KST 변환 후 날짜 비교
+                created_utc = page.get("created_time", "")[:16]  # "2026-05-09T23:00"
+                created_kst = ""
+                try:
+                    from datetime import datetime, timezone, timedelta
+                    _KST = timezone(timedelta(hours=9))
+                    dt   = datetime.fromisoformat(created_utc + ":00+00:00")
+                    created_kst = dt.astimezone(_KST).strftime("%Y-%m-%d")
+                except Exception:
+                    pass
+
+                matched = (
+                    any(v in title_text for v in date_variants)
+                    or created_kst == date_str
+                )
+                logger.info("  페이지: '%s' | created_kst=%s | 매칭=%s",
+                            title_text[:60], created_kst, matched)
+
+                if matched:
+                    pages = [page]
+                    logger.info("3차 스캔으로 페이지 발견: %s", title_text[:60])
+                    break
+        except Exception as e:
+            logger.warning("3차 스캔 실패: %s", e)
 
     if not pages:
-        logger.info("Notion: %s 날짜 분석 없음", date_str)
+        logger.info("Notion: %s 날짜 분석 없음 (3단계 모두 실패)", date_str)
         return None
 
     # ── 첫 번째 페이지 파싱 ───────────────────────────────────────────────────

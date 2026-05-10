@@ -722,7 +722,12 @@ def _load_from_notion(date_str: str) -> tuple[dict | None, str]:
         ensure_date_property()
         result = fetch_daily_from_notion(date_str)
         if result is None:
-            return None, f"{date_str} 날짜의 분석 데이터가 Notion에 없습니다."
+            db_id_hint = os.environ.get("NOTION_DAILY_DB_ID", "")[:8] + "..."
+            return None, (
+                f"{date_str} 날짜의 분석 데이터를 찾지 못했습니다. "
+                f"(DB: {db_id_hint}) — 3단계 검색 모두 실패. "
+                f"🖥 활동 로그 탭에서 상세 내역 확인 필요."
+            )
         return result, ""
     except Exception as e:
         err = str(e)
