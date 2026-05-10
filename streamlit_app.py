@@ -1212,16 +1212,41 @@ def main() -> None:
                 "</div>",
                 unsafe_allow_html=True,
             )
-            # Notion 자동 로드 실패 시 오류 원인 표시
+            # Notion 자동 로드 실패 시 오류 + 진단 버튼
             _load_err = st.session_state.get("notion_load_error", "")
             if _load_err:
-                st.error(
-                    f"🔴 Notion 자동 로드 실패: `{_load_err}`\n\n"
-                    "**체크리스트:**\n"
-                    "- Streamlit Cloud Secrets에 `NOTION_TOKEN` 설정 확인\n"
-                    "- Streamlit Cloud Secrets에 `NOTION_DAILY_DB_ID` 설정 확인\n"
-                    "- **🖥 활동 로그** 탭에서 상세 오류 확인"
-                )
+                st.error(f"🔴 Notion 자동 로드 실패: `{_load_err}`")
+
+            # ── Notion 연결 진단 버튼 ────────────────────────────────────────
+            if os.environ.get("NOTION_TOKEN") and os.environ.get("NOTION_DAILY_DB_ID"):
+                with st.expander("🔍 Notion DB 연결 진단 (클릭해서 열기)", expanded=bool(_load_err)):
+                    if st.button("🔍 지금 진단 실행", key="btn_diagnose"):
+                        with st.spinner("Notion DB 조회 중..."):
+                            from src.notion_client import diagnose_notion_db
+                            diag = diagnose_notion_db()
+                        st.markdown(f"**DB ID**: `{diag['db_id_hint']}`")
+                        st.markdown(f"**타이틀 속성명**: `{diag['title_prop']}`")
+                        st.markdown(f"**DB 속성 목록**: `{', '.join(diag['props']) or '없음'}`")
+
+                        if diag["error"]:
+                            st.error(f"❌ 오류: `{diag['error']}`")
+                        elif not diag["recent_pages"]:
+                            st.warning("⚠️ DB에 페이지가 **0개**입니다. DB ID가 올바른지 확인하세요.")
+                            st.info(
+                                "**확인 방법**: Notion에서 Daily 분석 DB를 열고 "
+                                "URL의 마지막 32자리가 Secrets의 `NOTION_DAILY_DB_ID`와 일치하는지 확인하세요."
+                            )
+                        else:
+                            st.success(f"✅ DB 연결 OK — 최근 {len(diag['recent_pages'])}개 페이지:")
+                            for p in diag["recent_pages"]:
+                                st.markdown(
+                                    f"- `{p['created_kst']} KST` &nbsp; **{p['title']}**"
+                                )
+                            st.info(
+                                "👆 위 목록에서 오늘 날짜(`2026-05-10`) 페이지가 없다면, "
+                                "**GitHub Secrets**의 DB ID와 **Streamlit Secrets**의 DB ID가 "
+                                "다를 수 있습니다."
+                            )
         else:
             analysis = st.session_state["daily_analysis"]
 

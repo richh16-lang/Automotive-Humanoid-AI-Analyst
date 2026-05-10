@@ -537,6 +537,71 @@ def _extract_page_text(client: Client, page_id: str) -> str:
 # Public: Notion DB 날짜 속성 추가
 # ══════════════════════════════════════════════════════════════════════════════
 
+def diagnose_notion_db(db_id: str | None = None) -> dict:
+    """
+    Notion Daily DB 연결 상태 진단.
+    반환: {token_ok, db_id_hint, error, props, recent_pages}
+    """
+    if not db_id:
+        db_id = os.environ.get("NOTION_DAILY_DB_ID", "").strip()
+    token = os.environ.get("NOTION_TOKEN", "")
+    result: dict = {
+        "token_ok":     bool(token),
+        "db_id_hint":   (db_id[:8] + "...") if db_id else "미설정",
+        "db_id_full":   db_id,
+        "error":        None,
+        "props":        [],
+        "recent_pages": [],   # [{title, created_utc, created_kst}]
+        "title_prop":   "?",
+    }
+    if not token:
+        result["error"] = "NOTION_TOKEN 미설정"
+        return result
+    if not db_id:
+        result["error"] = "NOTION_DAILY_DB_ID 미설정"
+        return result
+
+    try:
+        client = _get_client()
+
+        # DB 속성 목록
+        db = client.databases.retrieve(database_id=db_id)
+        result["props"] = list(db.get("properties", {}).keys())
+
+        # 타이틀 속성명
+        title_prop = _get_title_prop_name(client, db_id)
+        result["title_prop"] = title_prop
+
+        # 최근 5개 페이지
+        resp  = client.databases.query(
+            database_id=db_id,
+            sorts=[{"timestamp": "created_time", "direction": "descending"}],
+            page_size=5,
+        )
+        for page in resp.get("results", []):
+            props      = page.get("properties", {})
+            title_rich = props.get(title_prop, {}).get("title", [])
+            title_text = "".join(r.get("plain_text", "") for r in title_rich)
+            created    = page.get("created_time", "")[:16]
+            # KST 변환
+            kst_date = ""
+            try:
+                from datetime import datetime, timezone as _tz, timedelta as _td
+                dt       = datetime.fromisoformat(created + ":00+00:00")
+                kst_date = dt.astimezone(_tz(_td(hours=9))).strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                kst_date = created
+            result["recent_pages"].append({
+                "title":       title_text[:80] or "(제목 없음)",
+                "created_utc": created,
+                "created_kst": kst_date,
+            })
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
 def ensure_date_property(db_id: str | None = None) -> bool:
     """
     Daily DB에 '날짜' Date 속성이 없으면 자동으로 추가.
