@@ -421,6 +421,9 @@ def save_daily_to_notion(analysis: dict) -> str:
     title    = f"[Daily] {date_str} AI/Semiconductor News"   # 짧은 타이틀
     blocks   = _build_blocks(analysis)
 
+    # ── '날짜' Date 속성이 없으면 자동으로 추가 (최초 1회) ──────────────────
+    ensure_date_property(db_id)
+
     logger.info("Notion 페이지 생성 중 (블록 %d개)...", len(blocks))
 
     page     = _create_page_safe(client, db_id, title, analysis,
@@ -528,3 +531,180 @@ def _extract_page_text(client: Client, page_id: str) -> str:
             break
         cursor = resp.get("next_cursor")
     return "\n".join(lines)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Public: Notion DB 날짜 속성 추가
+# ══════════════════════════════════════════════════════════════════════════════
+
+def ensure_date_property(db_id: str | None = None) -> bool:
+    """
+    Daily DB에 '날짜' Date 속성이 없으면 자동으로 추가.
+    이미 있으면 스킵. 반환값: 성공 여부.
+    """
+    if not db_id:
+        db_id = os.environ.get("NOTION_DAILY_DB_ID", "").strip()
+    if not db_id:
+        return False
+    try:
+        client = _get_client()
+        db = client.databases.retrieve(database_id=db_id)
+        existing = set(db.get("properties", {}).keys())
+        if any(p in existing for p in ("날짜", "Date", "date")):
+            logger.debug("날짜 속성이 이미 존재합니다: %s", existing & {"날짜", "Date", "date"})
+            return True
+        # 없으면 추가
+        client.databases.update(
+            database_id=db_id,
+            properties={"날짜": {"date": {}}},
+        )
+        logger.info("'날짜' Date 속성을 DB에 추가했습니다.")
+        return True
+    except Exception as e:
+        logger.warning("날짜 속성 추가 실패: %s", e)
+        return False
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Public: Daily 데이터 날짜별 조회
+# ══════════════════════════════════════════════════════════════════════════════
+
+_SECTION_HEADINGS = [
+    "핵심 요약", "기술적 의미", "AI Agent", "비즈니스 영향",
+    "Ecosystem", "향후 전망", "메모리", "스토리지 Workload",
+    "지역별", "Why Now",
+]
+
+
+def _parse_raw_to_sections(raw_text: str) -> dict:
+    """
+    페이지 블록에서 추출한 raw 텍스트를 섹션 제목 → 내용 dict 로 파싱.
+    Notion heading_2 블록 → 섹션 구분자로 사용.
+    """
+    sections: dict = {}
+    current_title: str | None = None
+    current_lines: list[str] = []
+
+    for line in raw_text.split("\n"):
+        stripped = line.strip()
+        matched = next(
+            (h for h in _SECTION_HEADINGS
+             if h in stripped and len(stripped) < 80),
+            None,
+        )
+        if matched:
+            if current_title and current_lines:
+                sections[current_title] = "\n".join(current_lines).strip()
+            current_title = matched
+            current_lines = []
+        elif current_title:
+            current_lines.append(line)
+
+    if current_title and current_lines:
+        sections[current_title] = "\n".join(current_lines).strip()
+
+    return sections
+
+
+def fetch_daily_from_notion(date_str: str) -> dict | None:
+    """
+    Notion Daily DB에서 특정 날짜의 분석 페이지를 불러와 analysis dict 반환.
+    1차: '날짜' Date 속성 필터 (정확한 날짜 매칭)
+    2차: 제목에 date_str 포함 여부로 폴백 (구 항목·Date 속성 미설정 시)
+    반환: analysis dict 또는 None (해당 날짜 데이터 없음)
+    """
+    db_id = os.environ.get("NOTION_DAILY_DB_ID", "").strip()
+    if not db_id:
+        raise ValueError("NOTION_DAILY_DB_ID 환경변수가 없습니다.")
+
+    client = _get_client()
+
+    # ── DB의 실제 속성 목록 확인 ──────────────────────────────────────────────
+    try:
+        db        = client.databases.retrieve(database_id=db_id)
+        all_props = set(db.get("properties", {}).keys())
+    except Exception as e:
+        logger.warning("DB 속성 조회 실패: %s", e)
+        all_props = set()
+
+    date_prop_name = next(
+        (p for p in ("날짜", "Date", "date") if p in all_props), None
+    )
+
+    pages: list = []
+
+    # ── 1차: Date 속성으로 필터 ───────────────────────────────────────────────
+    if date_prop_name:
+        try:
+            resp = client.databases.query(
+                database_id=db_id,
+                filter={
+                    "property": date_prop_name,
+                    "date": {"equals": date_str},
+                },
+                sorts=[{"timestamp": "created_time", "direction": "descending"}],
+                page_size=5,
+            )
+            pages = resp.get("results", [])
+            logger.info("날짜 속성 필터(%s=%s): %d건", date_prop_name, date_str, len(pages))
+        except Exception as e:
+            logger.warning("날짜 속성 필터 실패: %s", e)
+
+    # ── 2차: 제목에 날짜 문자열 포함 여부로 폴백 ─────────────────────────────
+    if not pages:
+        title_prop = _get_title_prop_name(client, db_id)
+        try:
+            resp = client.databases.query(
+                database_id=db_id,
+                filter={
+                    "property": title_prop,
+                    "title": {"contains": date_str},
+                },
+                sorts=[{"timestamp": "created_time", "direction": "descending"}],
+                page_size=5,
+            )
+            pages = resp.get("results", [])
+            logger.info("제목 포함 필터(%s): %d건", date_str, len(pages))
+        except Exception as e:
+            logger.warning("제목 필터 실패: %s", e)
+
+    if not pages:
+        logger.info("Notion: %s 날짜 분석 없음", date_str)
+        return None
+
+    # ── 첫 번째 페이지 파싱 ───────────────────────────────────────────────────
+    page     = pages[0]
+    page_id  = page["id"]
+    page_url = page.get("url", "")
+    props    = page.get("properties", {})
+
+    # 키워드
+    keywords: list[str] = []
+    kw_prop = props.get("Keywords", {})
+    if kw_prop.get("type") == "multi_select":
+        keywords = [opt["name"] for opt in kw_prop.get("multi_select", [])]
+
+    # 기사 수
+    article_count = 0
+    art_prop = props.get("Articles", {})
+    if art_prop.get("type") == "number" and art_prop.get("number") is not None:
+        article_count = int(art_prop["number"])
+
+    # 페이지 본문 → 섹션 파싱
+    logger.info("Notion 페이지 블록 추출 중: %s", page_id)
+    raw_text = _extract_page_text(client, page_id)
+    sections = _parse_raw_to_sections(raw_text)
+
+    return {
+        "date":              date_str,
+        "article_count":     article_count,
+        "keywords_found":    keywords,
+        "sections":          sections,
+        "raw":               raw_text,
+        "notion_url":        page_url,
+        "provider":          "Notion",
+        "model_attribution": f"Notion 캐시 ({date_str})",
+        "source_urls":       [],
+        "filter_meta":       {"used_groq": False},
+        "research_meta":     {"used_gemini": False},
+    }

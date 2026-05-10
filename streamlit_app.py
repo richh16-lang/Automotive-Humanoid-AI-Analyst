@@ -647,6 +647,21 @@ def _build_summary_text(analysis: dict) -> str:
     return "\n".join(lines)
 
 
+def _load_from_notion(date_str: str) -> dict | None:
+    """
+    Notion에서 특정 날짜 분석 데이터 로드.
+    성공 시 analysis dict 반환, 실패/없음 시 None.
+    """
+    if not (os.environ.get("NOTION_TOKEN") and os.environ.get("NOTION_DAILY_DB_ID")):
+        return None
+    try:
+        from src.notion_client import fetch_daily_from_notion
+        return fetch_daily_from_notion(date_str)
+    except Exception as e:
+        _append_log(f"Notion 로드 실패: {e}", "warn")
+        return None
+
+
 def render_llm_log() -> None:
     """하단 LLM 활동 로그 패널."""
     logs = st.session_state.get("llm_log", [])
@@ -971,8 +986,26 @@ def main() -> None:
 
     st.markdown("---")
 
-    # ── 메인 실행 버튼 ─────────────────────────────────────────────────────────
-    col_btn, col_kw = st.columns([2, 5])
+    # ── 앱 첫 로드 시 오늘 Notion 데이터 자동 불러오기 ────────────────────────
+    from datetime import timedelta, timezone as _tz
+    _KST = _tz(timedelta(hours=9))
+    _today_kst = datetime.now(_KST).strftime("%Y-%m-%d")
+
+    if ("daily_analysis" not in st.session_state
+            and "notion_auto_loaded" not in st.session_state):
+        st.session_state["notion_auto_loaded"] = True   # 재실행 방지
+        if os.environ.get("NOTION_TOKEN") and os.environ.get("NOTION_DAILY_DB_ID"):
+            with st.spinner(f"📥 오늘({_today_kst}) Notion 데이터 자동 로드 중..."):
+                _auto = _load_from_notion(_today_kst)
+            if _auto:
+                st.session_state["daily_analysis"] = _auto
+                st.session_state["last_run"] = f"{_today_kst} (Notion)"
+                _append_log(f"Notion 자동 로드: {_today_kst}", "ok")
+                st.rerun()
+
+    # ── 메인 버튼 행: 실행 + 과거 데이터 불러오기 ────────────────────────────
+    col_btn, col_hist, col_kw = st.columns([2, 2, 4])
+
     with col_btn:
         run_clicked = st.button(
             "▶  실시간 전략 분석 실행",
@@ -980,6 +1013,14 @@ def main() -> None:
             use_container_width=True,
             help="뉴스 수집 → Groq 필터 → Gemini 조사 → LLM 합성 전체 파이프라인 실행",
         )
+
+    with col_hist:
+        show_picker = st.button(
+            "📅 과거 데이터 불러오기",
+            use_container_width=True,
+            help="Notion에 저장된 특정 날짜의 분석 결과를 불러옵니다",
+        )
+
     with col_kw:
         kw_preview = ", ".join(cfg["keywords"][:6])
         more = f" 외 {len(cfg['keywords'])-6}개" if len(cfg["keywords"]) > 6 else ""
@@ -993,12 +1034,56 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
+    # ── 과거 데이터 날짜 피커 ──────────────────────────────────────────────────
+    if show_picker or st.session_state.get("show_date_picker"):
+        st.session_state["show_date_picker"] = True
+        import datetime as _dt
+        with st.container():
+            st.markdown(
+                "<div style='background:#0A1628;border:1px solid #1E3A5F;"
+                "border-radius:8px;padding:16px 20px;margin:8px 0'>",
+                unsafe_allow_html=True,
+            )
+            pc1, pc2, pc3 = st.columns([2, 1, 1])
+            with pc1:
+                selected_date = st.date_input(
+                    "조회할 날짜 선택",
+                    value=_dt.date.fromisoformat(_today_kst),
+                    min_value=_dt.date(2025, 1, 1),
+                    max_value=_dt.date.fromisoformat(_today_kst),
+                    label_visibility="collapsed",
+                )
+            with pc2:
+                fetch_clicked = st.button("📥 불러오기", use_container_width=True, type="secondary")
+            with pc3:
+                if st.button("✕ 닫기", use_container_width=True):
+                    st.session_state["show_date_picker"] = False
+                    st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            if fetch_clicked:
+                _date_str = selected_date.isoformat()
+                with st.spinner(f"📥 {_date_str} Notion 데이터 로드 중..."):
+                    _hist = _load_from_notion(_date_str)
+                if _hist:
+                    st.session_state["daily_analysis"] = _hist
+                    st.session_state["last_run"] = f"{_date_str} (Notion)"
+                    st.session_state["show_date_picker"] = False
+                    _append_log(f"Notion 과거 로드: {_date_str}", "ok")
+                    st.rerun()
+                else:
+                    st.warning(
+                        f"⚠️ {_date_str} 날짜의 분석 데이터가 Notion에 없습니다. "
+                        "날짜를 다시 선택하거나 실시간 분석을 실행하세요."
+                    )
+
     # ── 파이프라인 실행 ────────────────────────────────────────────────────────
     if run_clicked:
         result = run_pipeline(cfg)
         if result:
             st.session_state["daily_analysis"] = result
-            st.session_state["last_run"] = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
+            st.session_state["last_run"] = datetime.now(_KST).strftime("%Y-%m-%d %H:%M KST")
+            st.session_state["show_date_picker"] = False
             st.rerun()
 
     # ── 탭 ────────────────────────────────────────────────────────────────────
@@ -1009,13 +1094,28 @@ def main() -> None:
     # Daily 분석 결과
     with tab_daily:
         if "daily_analysis" not in st.session_state:
+            notion_ok = bool(os.environ.get("NOTION_TOKEN") and os.environ.get("NOTION_DAILY_DB_ID"))
+            if notion_ok:
+                notice = (
+                    f"<p style='color:#546E7A;font-size:12px'>"
+                    f"오늘({_today_kst}) Notion에 저장된 분석이 없거나 아직 실행되지 않았습니다.<br>"
+                    f"<strong style='color:#00B4D8'>▶ 실시간 전략 분석 실행</strong>으로 새로 생성하거나 "
+                    f"<strong style='color:#00B4D8'>📅 과거 데이터 불러오기</strong>로 이전 날짜를 조회하세요."
+                    f"</p>"
+                )
+            else:
+                notice = (
+                    "<p style='color:#546E7A;font-size:12px'>"
+                    "상단의 <strong style='color:#00B4D8'>▶ 실시간 전략 분석 실행</strong> "
+                    "버튼을 클릭하세요.<br>"
+                    "<span style='font-size:12px'>약 2~5분 소요 · 이메일 자동 발송</span>"
+                    "</p>"
+                )
             st.markdown(
-                "<div style='text-align:center;padding:80px 20px;color:#546E7A'>"
+                "<div style='text-align:center;padding:60px 20px;color:#546E7A'>"
                 "<div style='font-size:48px;margin-bottom:16px'>🔬</div>"
                 "<h3 style='color:#1E3A5F'>분석 결과가 없습니다</h3>"
-                "<p>상단의 <strong style='color:#00B4D8'>▶ 실시간 전략 분석 실행</strong> "
-                "버튼을 클릭하세요.<br>"
-                "<span style='font-size:12px'>약 2~5분 소요 · 이메일 자동 발송</span></p>"
+                f"{notice}"
                 "</div>",
                 unsafe_allow_html=True,
             )
