@@ -287,29 +287,24 @@ def _build_blocks(analysis: dict) -> list[dict]:
 
             if content.strip():
                 is_summary = any(k in title for k in ("핵심 요약", "요약", "Summary"))
-                # 마크다운 테이블이 섞인 경우 테이블 블록과 일반 텍스트를 분리 처리
-                segments = _split_content_tables(content)
-                for seg_text, is_table in segments:
-                    if is_table and seg_text.strip():
-                        rows = _parse_md_table_rows(seg_text)
-                        if rows:
-                            blocks.append(_table_block(rows, has_header=True))
-                        continue
-                    if not seg_text.strip():
-                        continue
-                    bullets = _parse_bullets(seg_text, keep_links=is_summary)
-                    if bullets:
-                        for b in bullets:
-                            if isinstance(b, list):  # rich_text with links
-                                blocks.append({
-                                    "object": "block",
-                                    "type": "bulleted_list_item",
-                                    "bulleted_list_item": {"rich_text": b},
-                                })
-                            else:
-                                blocks.append(_bullet_block(b))
-                    else:
-                        blocks.extend(_paragraph_blocks(seg_text))
+                # ── 마크다운 표는 paragraph 블록으로 그대로 저장 ──────────────
+                # Notion 네이티브 table 블록으로 변환하면 _extract_page_text()
+                # 가 table_row 자식을 읽지 못해 대시보드 캐시 로드 시 표가
+                # 통째로 유실됨. paragraph로 저장하면 마크다운 텍스트가 보존되어
+                # _md_to_html()이 HTML 표로 정상 변환.
+                bullets = _parse_bullets(content, keep_links=is_summary)
+                if bullets:
+                    for b in bullets:
+                        if isinstance(b, list):  # rich_text with links
+                            blocks.append({
+                                "object": "block",
+                                "type": "bulleted_list_item",
+                                "bulleted_list_item": {"rich_text": b},
+                            })
+                        else:
+                            blocks.append(_bullet_block(b))
+                else:
+                    blocks.extend(_paragraph_blocks(content))
 
             blocks.append(_divider_block())
     else:
