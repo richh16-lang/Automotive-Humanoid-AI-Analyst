@@ -63,22 +63,27 @@ def _rich_text(content: str) -> list[dict]:
 
 
 def _rich_text_with_links(text: str) -> list[dict]:
-    """URL 패턴을 '클릭' 하이퍼링크로 변환한 Notion rich_text."""
+    """
+    URL 패턴을 '[Link]' 하이퍼링크로 변환한 Notion rich_text.
+    [출처: URL] / [링크: URL] 패턴과 단독 URL 모두 처리.
+    """
     URL_PAT = re.compile(
-        r'\[(?:출처|링크|Source|참조)[:\s]*(https?://[^\]]+)\]'
+        r'\[(?:출처|링크|Source|참조|source)[:\s]*(https?://[^\]]+)\]'
         r'|(https?://\S{15,})'
     )
     result: list[dict] = []
     last = 0
     for m in URL_PAT.finditer(text):
-        url = (m.group(1) or m.group(2) or "").strip()
+        url    = (m.group(1) or m.group(2) or "").strip()
         before = text[last:m.start()].strip()
         if before:
             result.append({"type": "text", "text": {"content": before + " "}})
         if url:
-            result.append({"type": "text",
-                           "text": {"content": "클릭", "link": {"url": url}},
-                           "annotations": {"color": "blue", "underline": True}})
+            result.append({
+                "type": "text",
+                "text": {"content": "[Link]", "link": {"url": url}},
+                "annotations": {"color": "blue", "underline": True},
+            })
         result.append({"type": "text", "text": {"content": " "}})
         last = m.end()
     tail = text[last:].strip()
@@ -282,38 +287,79 @@ def _build_blocks(analysis: dict) -> list[dict]:
         logger.warning("섹션 파싱 결과 없음, raw 텍스트 삽입 (%d자)", len(raw))
         blocks.extend(_paragraph_blocks(raw))
 
-    # ── 출처 URL 목록 (source_items 우선, fallback: source_urls) ─────────
+    # ── 참조 URL 목록 ─────────────────────────────────────────────────────
+    # 형식: ● [기사 제목]  [Link](URL)
+    # 제목이 없거나 도메인형이면 BeautifulSoup으로 스크래핑
     source_items = analysis.get("source_items", [])
     source_urls  = analysis.get("source_urls", [])
     if source_items or source_urls:
         blocks.append(_heading_block("📚 참조 URL"))
+
+        fetch_count = 0          # 네트워크 타이틀 조회 횟수 제한
+        _MAX_FETCHES = 8         # 최대 8건 스크래핑 (저장 속도 보호)
+
+        items_to_render: list[tuple[str, str]] = []   # (title, url)
         if source_items:
             for item in source_items[:20]:
-                title = (item.get("title") or "").strip()
-                url   = (item.get("url")   or "").strip()
-                if not url:
-                    continue
-                # "기사 제목  https://..." 형식으로 저장 → 읽을 때 제목+링크 복원 가능
-                text = f"{title}  {url}" if title else url
-                blocks.append(_bullet_block(text[:1900]))
+                t = (item.get("title") or "").strip()
+                u = (item.get("url")   or "").strip()
+                if u:
+                    items_to_render.append((t, u))
         else:
-            for url in source_urls[:20]:
-                blocks.append(_bullet_block(url))
+            for u in source_urls[:20]:
+                if u:
+                    items_to_render.append(("", u))
+
+        for title, url in items_to_render:
+            # 타이틀 스크래핑 필요 여부 확인
+            if fetch_count < _MAX_FETCHES and _notion_needs_title(title, url):
+                fetched = _fetch_notion_title(url)
+                if fetched:
+                    title = fetched
+                fetch_count += 1
+            elif _notion_needs_title(title, url):
+                # 스크래핑 횟수 초과 시 도메인 fallback
+                try:
+                    from urllib.parse import urlparse as _up
+                    title = _up(url).netloc.replace("www.", "") or url[:60]
+                except Exception:
+                    title = url[:60]
+
+            blocks.append(_source_item_bullet(title, url))
 
     return blocks
+
+
+# 불릿 접두사 패턴: - • ▸ * ① ② ③ ... ⑩  또는  1. 2. 3.  또는  1) 2) 3)
+_BULLET_PAT = re.compile(
+    r"^(?:"
+    r"[-•·▪▸*]"                         # 일반 불릿 기호
+    r"|[①②③④⑤⑥⑦⑧⑨⑩]"              # 원문자 ①~⑩
+    r"|\d{1,2}[.\)]\s"                   # 1. 2. 3. / 1) 2) 3)
+    r")\s*"
+)
 
 
 def _parse_bullets(content: str, keep_links: bool = False) -> list:
     """
     섹션 내용에서 불릿 항목 추출.
-    keep_links=True: URL을 유지 (핵심 요약용 rich_text 변환 대상)
-    반환: list[str] 또는 keep_links=True 시 list[list[dict]] (rich_text 포맷)
+
+    인식하는 불릿 접두사:
+      - / • / · / ▪ / ▸ / *   (일반 기호)
+      ① ② ③ ... ⑩            (원문자, LLM 핵심요약에 자주 사용)
+      1. 2. 3. / 1) 2)         (숫자 + 마침표/괄호)
+
+    keep_links=True: URL을 [Link] 하이퍼링크로 변환 (핵심 요약용)
+    반환: list[str] 또는 keep_links=True 시 list[list[dict]] (Notion rich_text)
     """
     result = []
     for raw in content.split("\n"):
         line = raw.strip()
-        if line.startswith(("-", "•", "·", "▪", "▸", "*")):
-            cleaned = line.lstrip("-•·▪▸*").strip()
+        if not line:
+            continue
+        m = _BULLET_PAT.match(line)
+        if m:
+            cleaned = line[m.end():].strip()
             cleaned = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", cleaned)
             if not cleaned:
                 continue
@@ -323,6 +369,65 @@ def _parse_bullets(content: str, keep_links: bool = False) -> list:
                 cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
                 result.append(cleaned[:1900])
     return result
+
+
+def _notion_needs_title(title: str, url: str) -> bool:
+    """
+    Notion 저장 시 제목 스크래핑이 필요한지 판단.
+    - 제목이 없거나 빈 문자열
+    - URL 자체가 제목으로 들어온 경우
+    - 공백 없이 점이 있는 도메인형 문자열 (news.google.com, reuters.com 등)
+    """
+    if not title or not title.strip():
+        return True
+    t = title.strip()
+    if t.startswith("http"):
+        return True
+    if " " not in t and "." in t and len(t) < 60:
+        return True
+    return False
+
+
+def _fetch_notion_title(url: str) -> str:
+    """
+    BeautifulSoup으로 URL의 <title> 태그를 파싱해 기사 제목 반환.
+    실패 시 도메인 이름 반환 (예: reuters.com).
+
+    collector.fetch_page_title()을 재사용.
+    """
+    try:
+        from .collector import fetch_page_title
+        fetched = fetch_page_title(url, timeout=4)
+        if fetched:
+            return fetched[:120]
+    except Exception:
+        pass
+    # fallback: 도메인 이름
+    try:
+        from urllib.parse import urlparse
+        return urlparse(url).netloc.replace("www.", "") or url[:60]
+    except Exception:
+        return url[:60]
+
+
+def _source_item_bullet(title: str, url: str) -> dict:
+    """
+    참조 URL 항목 하나를 Notion bulleted_list_item 블록으로 변환.
+    형식: ● [기사 제목]  [Link](URL)
+    """
+    title_clean = title.strip()[:150] or url[:60]
+    rich_text = [
+        {"type": "text",
+         "text": {"content": f"● {title_clean}  "}},
+        {"type": "text",
+         "text": {"content": "[Link]", "link": {"url": url}},
+         "annotations": {"color": "blue", "underline": True, "bold": False}},
+    ]
+    return {
+        "object": "block",
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {"rich_text": rich_text},
+    }
 
 
 def _get_title_prop_name(client: Client, db_id: str) -> str:
