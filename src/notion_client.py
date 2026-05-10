@@ -664,21 +664,51 @@ def ensure_date_property(db_id: str | None = None) -> bool:
 # Public: Daily 데이터 날짜별 조회
 # ══════════════════════════════════════════════════════════════════════════════
 
-_SECTION_HEADINGS = [
-    "핵심 요약", "기술적 의미", "AI Agent", "비즈니스 영향",
-    "Ecosystem", "향후 전망", "메모리", "스토리지 Workload",
-    "지역별", "Why Now",
-]
+# ── 섹션 헤딩 변형 사전 ──────────────────────────────────────────────────────
+# LLM 템플릿: "## 1. 핵심 요약" → _parse_sections() 키: "1. 핵심 요약"
+# Notion 블록으로 저장 후 읽으면: "1. 핵심 요약" (## 없음)
+# 아래 dict: canonical 제목 → 실제로 나타날 수 있는 모든 변형 목록
+_SECTION_HEADING_VARIANTS: dict[str, list[str]] = {
+    "핵심 요약":        ["핵심 요약",        "1. 핵심 요약"],
+    "기술적 의미":      ["기술적 의미",      "기술적 의미 분석",
+                         "2. 기술적 의미 분석", "2. 기술적 의미"],
+    "AI Agent":         ["AI Agent",         "AI Agent 아키텍처 영향",
+                         "3. AI Agent 아키텍처 영향", "3. AI Agent"],
+    "비즈니스 영향":    ["비즈니스 영향",    "4. 비즈니스 영향"],
+    "Ecosystem":        ["Ecosystem",        "Ecosystem 영향",
+                         "5. Ecosystem 영향", "5. Ecosystem"],
+    "향후 전망":        ["향후 전망",        "6. 향후 전망"],
+    "메모리":           ["메모리",           "메모리·스토리지 시장 영향",
+                         "7. 메모리·스토리지 시장 영향", "7. 메모리"],
+    "스토리지 Workload": ["스토리지 Workload", "스토리지 Workload 심층 분석",
+                          "8. 스토리지 Workload 심층 분석", "8. 스토리지 Workload"],
+    "지역별":           ["지역별",           "지역별 동향 분석",
+                         "9. 지역별 동향 분석", "9. 지역별"],
+    "Why Now":          ["Why Now",          "Why Now?",
+                         "Why Now? — 전략적 시급성",
+                         "10. Why Now? — 전략적 시급성", "10. Why Now"],
+}
+
+# 변형 → canonical 역매핑 (빠른 조회용)
+_VARIANT_TO_CANONICAL: dict[str, str] = {
+    v: canon
+    for canon, variants in _SECTION_HEADING_VARIANTS.items()
+    for v in variants
+}
 
 
 def _parse_raw_to_sections(raw_text: str) -> dict:
     """
-    페이지 블록에서 추출한 raw 텍스트를 섹션 제목 → 내용 dict 로 파싱.
+    Notion 페이지 블록에서 추출한 raw 텍스트 → 섹션 제목 : 내용 dict 파싱.
 
-    헤딩 감지 기준 (오탐 방지):
-    - 라인이 섹션명과 완전히 일치하거나 (h == stripped)
-    - "섹션명:" / "섹션명 " 으로 시작하면서 길이가 섹션명 + 15자 이내인 경우
-    → "메모리 수요가 증가한다" 같은 일반 문장을 섹션 헤딩으로 오인하지 않음
+    헤딩 감지 전략 (2단계):
+    1차 — 정확 일치: _VARIANT_TO_CANONICAL 역매핑으로 O(1) 조회
+    2차 — 번호 접두어 제거 후 재시도: "3. AI Agent 아키텍처 영향" → body="AI Agent 아키텍처 영향"
+          이 body로 다시 1차 조회
+
+    불릿/내용 줄 오탐 방지:
+    - "② Micron: HBM4 메모리 양산 시작"처럼 ①~⑩으로 시작하는 줄은 절대 헤딩으로 처리 안 함
+    - substring 일치(h in stripped)는 사용 안 함 → false positive 원천 차단
     """
     sections: dict = {}
     current_title: str | None = None
@@ -686,22 +716,27 @@ def _parse_raw_to_sections(raw_text: str) -> dict:
 
     for line in raw_text.split("\n"):
         stripped = line.strip()
-        matched: str | None = None
 
-        for h in _SECTION_HEADINGS:
-            # 정확히 일치하거나, 경미한 접미어 포함 ("핵심 요약:", "핵심 요약 분석" 등)
-            if stripped == h:
-                matched = h
-                break
-            if (stripped.startswith(h + ":") or stripped.startswith(h + " ")) \
-                    and len(stripped) <= len(h) + 15:
-                matched = h
-                break
+        # ── 1차: 정확 일치 ────────────────────────────────────────────────────
+        canonical = _VARIANT_TO_CANONICAL.get(stripped)
 
-        if matched:
+        # ── 2차: "N. 제목" 형식 (LLM이 변형 또는 Notion 저장 그대로 읽힌 경우) ─
+        if not canonical:
+            m = re.match(r"^\d{1,2}[\.\)]\s+(.+)$", stripped)
+            if m:
+                body = m.group(1).strip()
+                canonical = _VARIANT_TO_CANONICAL.get(body)
+                # body가 변형 목록에 없으면 각 canonical 키워드로 시작하는지 확인
+                if not canonical:
+                    for canon, variants in _SECTION_HEADING_VARIANTS.items():
+                        if any(body.startswith(v) for v in variants):
+                            canonical = canon
+                            break
+
+        if canonical:
             if current_title and current_lines:
                 sections[current_title] = "\n".join(current_lines).strip()
-            current_title = matched
+            current_title = canonical
             current_lines = []
         elif current_title:
             current_lines.append(line)
