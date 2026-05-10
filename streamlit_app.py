@@ -277,7 +277,18 @@ def _md_to_html(text: str) -> str:
         r"<code style='background:#1E3A5F;padding:1px 4px;border-radius:3px;color:#90E0EF'>\1</code>",
         text,
     )
-    # 4) 단독 URL → "출처 [link]" 형식으로 변환 (raw URL 숨김)
+    # 3.5) [출처: URL] / [링크: URL] / [Source: URL] → [Link] 하이퍼링크
+    #      LLM 출력 원본 및 Notion 캐시에서 복원된 URL 패턴 모두 처리
+    text = re.sub(
+        r'\[(?:출처|링크|Source|참조|source)[:\s]*(https?://[^\]\s]+)\]',
+        lambda m: (
+            f'<a href="{m.group(1).strip()}" target="_blank" '
+            f'style="color:#4A90A4;font-size:11px;font-weight:600;'
+            f'text-decoration:none;margin-left:4px">[Link]</a>'
+        ),
+        text,
+    )
+    # 4) 단독 URL → "[link]" 하이퍼링크 (raw URL 숨김)
     text = re.sub(
         r'(?<!["\(=])(https?://[^\s<>")\]]+)',
         lambda m: (

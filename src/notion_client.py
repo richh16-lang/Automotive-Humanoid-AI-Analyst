@@ -282,12 +282,23 @@ def _build_blocks(analysis: dict) -> list[dict]:
         logger.warning("섹션 파싱 결과 없음, raw 텍스트 삽입 (%d자)", len(raw))
         blocks.extend(_paragraph_blocks(raw))
 
-    # ── 출처 URL 목록 ─────────────────────────────────────────
-    source_urls = analysis.get("source_urls", [])
-    if source_urls:
+    # ── 출처 URL 목록 (source_items 우선, fallback: source_urls) ─────────
+    source_items = analysis.get("source_items", [])
+    source_urls  = analysis.get("source_urls", [])
+    if source_items or source_urls:
         blocks.append(_heading_block("📚 참조 URL"))
-        for url in source_urls[:20]:
-            blocks.append(_bullet_block(url))
+        if source_items:
+            for item in source_items[:20]:
+                title = (item.get("title") or "").strip()
+                url   = (item.get("url")   or "").strip()
+                if not url:
+                    continue
+                # "기사 제목  https://..." 형식으로 저장 → 읽을 때 제목+링크 복원 가능
+                text = f"{title}  {url}" if title else url
+                blocks.append(_bullet_block(text[:1900]))
+        else:
+            for url in source_urls[:20]:
+                blocks.append(_bullet_block(url))
 
     return blocks
 
@@ -544,7 +555,13 @@ def fetch_weekly_analyses(days: int = 7) -> list[dict]:
 
 
 def _extract_page_text(client: Client, page_id: str) -> str:
-    """페이지 블록 전체 텍스트 추출."""
+    """
+    페이지 블록 전체 텍스트 추출.
+    _rich_text_with_links()가 URL을 'plain_text="클릭"' + link 어노테이션으로 저장하므로,
+    plain_text가 "클릭" 등인 경우 실제 URL을 복원해 반환한다.
+    """
+    _LINK_PLACEHOLDERS = {"클릭", "링크", "Link", "[Link]", "link", "source"}
+
     lines, cursor = [], None
     while True:
         kwargs: dict = {"block_id": page_id}
@@ -554,7 +571,17 @@ def _extract_page_text(client: Client, page_id: str) -> str:
         for block in resp.get("results", []):
             btype = block.get("type", "")
             rich  = block.get(btype, {}).get("rich_text", [])
-            text  = "".join(r.get("plain_text", "") for r in rich)
+            parts: list[str] = []
+            for r in rich:
+                plain    = r.get("plain_text", "")
+                link_obj = (r.get("text") or {}).get("link") or {}
+                url_val  = link_obj.get("url", "") if isinstance(link_obj, dict) else ""
+                # "클릭" 같은 플레이스홀더는 실제 URL로 교체
+                if url_val and plain in _LINK_PLACEHOLDERS:
+                    parts.append(url_val)
+                else:
+                    parts.append(plain)
+            text = "".join(parts)
             if text:
                 lines.append(text)
         if not resp.get("has_more"):
@@ -768,6 +795,60 @@ def _parse_raw_to_sections(raw_text: str) -> dict:
     return sections
 
 
+def _parse_source_items_from_raw(raw_text: str) -> list[dict]:
+    """
+    raw_text에서 "📚 참조 URL" 섹션을 찾아 source_items 리스트 복원.
+
+    저장 형식 (Fix B 이후):
+        기사 제목  https://example.com/article
+    구분자: URL 앞에 두 칸 이상 공백 또는 탭
+
+    구형 형식 (URL만 저장):
+        https://example.com/article
+    """
+    URL_RE    = re.compile(r'(https?://\S+)')
+    SPLIT_RE  = re.compile(r'\s{2,}|\t')   # 두 칸 이상 공백 또는 탭
+    items: list[dict] = []
+    in_section = False
+
+    for line in raw_text.split("\n"):
+        stripped = line.strip()
+
+        # 섹션 시작 감지
+        if "참조 URL" in stripped or "📚" in stripped:
+            in_section = True
+            continue
+
+        # 다른 헤딩이 나오면 섹션 종료
+        if in_section and stripped and not stripped.startswith("-") and not stripped.startswith("•"):
+            # heading_2 또는 callout 형태의 줄이면 종료
+            if _match_heading(stripped) or len(stripped) < 5:
+                if not URL_RE.search(stripped):
+                    in_section = False
+                    continue
+
+        if not in_section:
+            continue
+
+        url_m = URL_RE.search(stripped)
+        if not url_m:
+            continue
+
+        url   = url_m.group(1).rstrip(".,;)")
+        # 제목: URL 앞 부분 추출 (두 칸+ 공백 또는 URL 직전까지)
+        before_url = stripped[:url_m.start()].strip()
+        # "- " 등 불릿 마커 제거
+        before_url = re.sub(r"^[-•·▪▸*]\s*", "", before_url).strip()
+        # SPLIT_RE 기준으로 마지막 토큰이 URL일 경우 앞부분이 제목
+        parts = SPLIT_RE.split(before_url)
+        title = parts[0].strip() if parts else ""
+
+        if url:
+            items.append({"title": title, "url": url, "source": "", "summary": ""})
+
+    return items[:20]
+
+
 def fetch_daily_from_notion(date_str: str) -> dict | None:
     """
     Notion Daily DB에서 특정 날짜의 분석 페이지를 불러와 analysis dict 반환.
@@ -919,6 +1000,10 @@ def fetch_daily_from_notion(date_str: str) -> dict | None:
     if m:
         attribution = m.group(1).strip().rstrip('|').strip()
 
+    # ── 참조 URL 섹션에서 source_items 복원 ─────────────────────────────────
+    # Fix B 이후 저장 형식: "기사 제목  https://..." (두 칸 이상 공백으로 title/url 구분)
+    source_items = _parse_source_items_from_raw(raw_text)
+
     return {
         "date":              date_str,
         "article_count":     article_count,
@@ -928,7 +1013,8 @@ def fetch_daily_from_notion(date_str: str) -> dict | None:
         "notion_url":        page_url,
         "provider":          "Notion",
         "model_attribution": attribution,
-        "source_urls":       [],
+        "source_items":      source_items,
+        "source_urls":       [item["url"] for item in source_items],
         "filter_meta":       {"used_groq": False},
         "research_meta":     {"used_gemini": False},
         "from_notion_cache": True,   # 대시보드에서 캐시 여부 구분용
