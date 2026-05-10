@@ -122,6 +122,26 @@ def _extract_article_text(url: str) -> str:
         return ""
 
 
+def fetch_page_title(url: str, timeout: int = 6) -> str:
+    """
+    URL에서 <title> 태그를 파싱해 페이지 제목 반환.
+    실패 시 빈 문자열 반환 (호출자가 도메인 등으로 fallback).
+    """
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=timeout)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "lxml")
+        tag = soup.find("title")
+        if tag:
+            raw = tag.get_text(strip=True)
+            # " | 매체명", " - 매체명" 등 suffix 제거
+            raw = re.split(r"\s*[|\-–—]\s*", raw)[0].strip()
+            return raw[:120]
+    except Exception as e:
+        logger.debug("페이지 타이틀 조회 실패 %s: %s", url, e)
+    return ""
+
+
 def collect_from_rss(feed_cfg: dict, keywords: list[str], hours: int = 26) -> list[Article]:
     """단일 RSS 피드에서 키워드 매칭 기사 수집."""
     articles: list[Article] = []

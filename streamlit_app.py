@@ -342,6 +342,116 @@ def _md_to_html(text: str) -> str:
     return "\n".join(lines_html)
 
 
+def _render_source_items(analysis: dict) -> None:
+    """
+    주요 출처 기사를 리스트 형식으로 렌더링.
+
+    표시 형식:
+        ● **기사 제목**  [Link](url)
+           출처명 · 요약 한 줄
+
+    데이터 우선순위:
+      1) analysis["source_items"]  (live 분석: title+url+summary 완전 세트)
+      2) analysis["articles"]      (Article 객체에서 추출)
+      3) analysis["source_urls"]   (URL만 있을 때 → 도메인 표시)
+    """
+    from urllib.parse import urlparse
+
+    # ── 데이터 소스 결정 ──────────────────────────────────────────────────────
+    items: list[dict] = analysis.get("source_items", [])
+
+    if not items:
+        # Article 객체 리스트에서 변환
+        raw_articles = analysis.get("articles", [])
+        seen: set[str] = set()
+        for a in raw_articles:
+            url = getattr(a, "url", None)
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            items.append({
+                "title":   getattr(a, "title", "") or "",
+                "url":     url,
+                "source":  getattr(a, "source", "") or "",
+                "summary": (getattr(a, "summary", "") or "")[:150],
+            })
+
+    if not items:
+        # 최후: URL만 있는 경우
+        for url in analysis.get("source_urls", [])[:20]:
+            if not url:
+                continue
+            try:
+                domain = urlparse(url).netloc.replace("www.", "")
+            except Exception:
+                domain = url[:40]
+            items.append({"title": domain, "url": url, "source": "", "summary": ""})
+
+    if not items:
+        return
+
+    st.markdown("#### 🔗 주요 출처 기사")
+
+    # ── CSS (한 번만 삽입) ────────────────────────────────────────────────────
+    st.markdown("""
+<style>
+.src-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid #1E3A5F;
+}
+.src-item:last-child { border-bottom: none; }
+.src-bullet { color: #00B4D8; font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.src-body   { flex: 1; min-width: 0; }
+.src-title  { color: #E8F4FD; font-size: 13.5px; font-weight: 700;
+              line-height: 1.5; word-break: break-word; }
+.src-link   { color: #4A90A4; font-size: 11.5px; font-weight: 600;
+              text-decoration: none; margin-left: 6px;
+              white-space: nowrap; vertical-align: middle; }
+.src-link:hover { color: #00B4D8; text-decoration: underline; }
+.src-meta   { color: #4A90A4; font-size: 11px; margin-top: 3px; }
+.src-summary{ color: #78909C; font-size: 12px; margin-top: 4px;
+              line-height: 1.6; word-break: break-word; }
+</style>
+""", unsafe_allow_html=True)
+
+    rows_html = ""
+    for item in items[:20]:
+        title   = item.get("title", "").strip()
+        url     = item.get("url", "").strip()
+        source  = item.get("source", "").strip()
+        summary = item.get("summary", "").strip()
+
+        # 제목 없으면 도메인 fallback
+        if not title:
+            try:
+                title = urlparse(url).netloc.replace("www.", "") or url[:50]
+            except Exception:
+                title = url[:50]
+
+        title_escaped = title.replace("<", "&lt;").replace(">", "&gt;")
+
+        rows_html += (
+            f"<div class='src-item'>"
+            f"  <span class='src-bullet'>●</span>"
+            f"  <div class='src-body'>"
+            f"    <span class='src-title'>{title_escaped}"
+            f"      <a href='{url}' target='_blank' class='src-link'>[Link]</a>"
+            f"    </span>"
+        )
+        if source:
+            rows_html += f"<div class='src-meta'>📰 {source}</div>"
+        if summary:
+            summary_escaped = summary.replace("<", "&lt;").replace(">", "&gt;")
+            rows_html += f"<div class='src-summary'>{summary_escaped}</div>"
+        rows_html += "  </div></div>"
+
+    st.markdown(
+        f"<div style='background:rgba(10,22,40,0.75);border:1px solid #1E3A5F;"
+        f"border-radius:10px;overflow:hidden'>{rows_html}</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _append_log(msg: str, level: str = "info") -> None:
     """LLM 활동 로그 세션 상태에 추가."""
     if "llm_log" not in st.session_state:
@@ -714,49 +824,8 @@ def render_strategy_dashboard(analysis: dict) -> None:
     else:
         st.caption("기사 수집 후 표시됩니다.")
 
-    # ── 4. Quick Links — 출처 하이퍼링크 버튼 ────────────────────────────────
-    source_urls = analysis.get("source_urls", [])
-    if source_urls:
-        st.markdown("#### 🔗 주요 출처 바로가기")
-
-        # URL → 기사 제목 맵 (실시간 분석 시 articles에서 추출)
-        url_title_map: dict[str, str] = {}
-        for a in articles:
-            _url = getattr(a, "url", None)
-            _title = getattr(a, "title", None)
-            if _url and _title:
-                url_title_map[_url.strip()] = _title
-
-        from urllib.parse import urlparse
-
-        rows_html = ""
-        for i, url in enumerate(source_urls[:16]):
-            url = url.strip()
-            # 기사 제목 우선, 없으면 도메인
-            title_label = url_title_map.get(url, "")
-            if not title_label:
-                try:
-                    domain = urlparse(url).netloc.replace("www.", "")
-                    title_label = domain[:40] if domain else f"출처 {i+1}"
-                except Exception:
-                    title_label = f"출처 {i+1}"
-            else:
-                title_label = title_label[:55] + ("…" if len(title_label) > 55 else "")
-
-            rows_html += (
-                f"<div style='display:flex;align-items:center;gap:10px;"
-                f"padding:7px 0;border-bottom:1px solid #1E3A5F'>"
-                f"<span style='color:#CAE9FF;font-size:13px;flex:1'>{title_label}</span>"
-                f"<a href='{url}' target='_blank' "
-                f"style='color:#00B4D8;font-size:12px;font-weight:600;"
-                f"text-decoration:none;white-space:nowrap;flex-shrink:0'>link ↗</a>"
-                f"</div>"
-            )
-        st.markdown(
-            f"<div style='background:rgba(10,22,40,0.7);border:1px solid #1E3A5F;"
-            f"border-radius:8px;padding:4px 14px'>{rows_html}</div>",
-            unsafe_allow_html=True,
-        )
+    # ── 4. 주요 출처 기사 목록 ────────────────────────────────────────────────
+    _render_source_items(analysis)
 
 
 def render_download_buttons(analysis: dict) -> None:

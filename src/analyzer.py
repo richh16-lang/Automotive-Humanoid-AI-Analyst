@@ -223,6 +223,28 @@ def _format_articles(articles: list[Article]) -> str:
     return "\n---\n".join(parts)
 
 
+def _build_source_items(articles: list[Article]) -> list[dict]:
+    """
+    출처 표시용 아이템 목록 생성.
+    - URL 중복 제거
+    - Groq 점수 내림차순 정렬
+    - 각 항목: {title, url, source, summary}
+    """
+    seen_urls: set[str] = set()
+    items: list[dict] = []
+    for a in sorted(articles, key=lambda x: x.groq_score, reverse=True):
+        if not a.url or a.url in seen_urls:
+            continue
+        seen_urls.add(a.url)
+        items.append({
+            "title":   a.title or "",
+            "url":     a.url,
+            "source":  a.source or "",
+            "summary": (a.summary or "")[:150],
+        })
+    return items[:20]
+
+
 def _parse_sections(text: str) -> dict[str, str]:
     sections: dict[str, str] = {}
     matches = list(re.finditer(r"^##\s+(.+)$", text, re.MULTILINE))
@@ -323,6 +345,8 @@ def analyze_articles(
         "sections": _parse_sections(raw_text),
         "sources": list({a.source for a in articles}),
         "source_urls": list({a.url for a in articles if a.url}),
+        # 출처 표시용 title+url 쌍 (중복 URL 제거, Groq 점수 높은 순)
+        "source_items": _build_source_items(articles),
         "keywords_found": list({kw for a in articles for kw in a.matched_keywords}),
     }
 
