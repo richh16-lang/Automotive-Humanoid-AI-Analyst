@@ -255,31 +255,80 @@ def _is_highlight_section(title: str) -> bool:
 def _md_to_html(text: str) -> str:
     """마크다운 → Streamlit HTML 변환."""
     import re
+
+    # ── 인라인 마크다운 치환 (순서 중요) ─────────────────────────────────────
+    # 1) [텍스트](URL) 링크
     text = re.sub(
         r"\[([^\]]+)\]\((https?://[^\)]+)\)",
         r'<a href="\2" target="_blank" style="color:#00B4D8;">\1</a>',
         text,
     )
+    # 2) **굵게**
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong style='color:#E8F4FD'>\1</strong>", text)
-    text = re.sub(r"`(.+?)`", r"<code style='background:#1E3A5F;padding:1px 4px;border-radius:3px;color:#90E0EF'>\1</code>", text)
-    # 불릿 처리
-    lines_html = []
+    # 3) `코드`
+    text = re.sub(
+        r"`(.+?)`",
+        r"<code style='background:#1E3A5F;padding:1px 4px;border-radius:3px;color:#90E0EF'>\1</code>",
+        text,
+    )
+    # 4) 단독 URL (링크로 감싸지지 않은 https://... 주소) → 클릭 가능하게
+    text = re.sub(
+        r'(?<!["\(])(https?://[^\s<>")\]]+)',
+        lambda m: f'<a href="{m.group(1)}" target="_blank" style="color:#4A90A4;font-size:11px">{m.group(1)[:60]}{"…" if len(m.group(1)) > 60 else ""}</a>',
+        text,
+    )
+
+    # ── 줄 단위 처리 (제목 / 불릿 / 단락) ───────────────────────────────────
+    lines_html: list[str] = []
     in_ul = False
+
     for line in text.split("\n"):
         stripped = line.strip()
-        if stripped.startswith(("- ", "• ", "▸ ", "* ")):
+
+        # 마크다운 헤딩 (###, ##, #)
+        if stripped.startswith("### "):
+            if in_ul:
+                lines_html.append("</ul>"); in_ul = False
+            content = stripped[4:]
+            lines_html.append(
+                f"<h4 style='color:#90E0EF;font-size:13px;font-weight:700;"
+                f"margin:12px 0 4px;padding-bottom:3px;"
+                f"border-bottom:1px solid rgba(0,180,216,0.2)'>{content}</h4>"
+            )
+        elif stripped.startswith("## "):
+            if in_ul:
+                lines_html.append("</ul>"); in_ul = False
+            content = stripped[3:]
+            lines_html.append(
+                f"<h3 style='color:#ADE8F4;font-size:14px;font-weight:700;"
+                f"margin:14px 0 5px;padding-bottom:3px;"
+                f"border-bottom:1px solid rgba(0,180,216,0.3)'>{content}</h3>"
+            )
+        elif stripped.startswith("# "):
+            if in_ul:
+                lines_html.append("</ul>"); in_ul = False
+            content = stripped[2:]
+            lines_html.append(
+                f"<h2 style='color:#CAE9FF;font-size:15px;font-weight:800;"
+                f"margin:16px 0 6px;padding-bottom:4px;"
+                f"border-bottom:1px solid rgba(0,180,216,0.4)'>{content}</h2>"
+            )
+        # 불릿 항목
+        elif stripped.startswith(("- ", "• ", "▸ ", "* ")):
             if not in_ul:
                 lines_html.append("<ul style='margin:6px 0;padding-left:18px;'>")
                 in_ul = True
             lines_html.append(f"<li style='margin:3px 0'>{stripped[2:]}</li>")
+        # 일반 단락
         else:
             if in_ul:
-                lines_html.append("</ul>")
-                in_ul = False
+                lines_html.append("</ul>"); in_ul = False
             if stripped:
                 lines_html.append(f"<p style='margin:4px 0'>{stripped}</p>")
+
     if in_ul:
         lines_html.append("</ul>")
+
     return "\n".join(lines_html)
 
 
@@ -659,15 +708,46 @@ def render_strategy_dashboard(analysis: dict) -> None:
     source_urls = analysis.get("source_urls", [])
     if source_urls:
         st.markdown("#### 🔗 주요 출처 바로가기")
-        # URL에서 도메인 추출해서 버튼 레이블로 사용
-        cols = st.columns(4)
-        for i, url in enumerate(source_urls[:12]):
-            try:
-                from urllib.parse import urlparse
-                domain = urlparse(url).netloc.replace("www.", "")[:22]
-            except Exception:
-                domain = f"출처 {i+1}"
-            cols[i % 4].link_button(f"↗ {domain}", url, use_container_width=True)
+
+        # URL → 기사 제목 맵 (실시간 분석 시 articles에서 추출)
+        url_title_map: dict[str, str] = {}
+        for a in articles:
+            _url = getattr(a, "url", None)
+            _title = getattr(a, "title", None)
+            if _url and _title:
+                url_title_map[_url.strip()] = _title
+
+        from urllib.parse import urlparse
+
+        st.markdown(
+            "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-top:4px'>",
+            unsafe_allow_html=True,
+        )
+        for i, url in enumerate(source_urls[:16]):
+            url = url.strip()
+            # 제목 우선 → 도메인 폴백
+            label = url_title_map.get(url, "")
+            if not label:
+                try:
+                    domain = urlparse(url).netloc.replace("www.", "")
+                    label = domain[:30] if domain else f"출처 {i+1}"
+                except Exception:
+                    label = f"출처 {i+1}"
+            else:
+                label = label[:45] + ("…" if len(label) > 45 else "")
+
+            st.markdown(
+                f'<a href="{url}" target="_blank" '
+                f'style="display:inline-block;background:rgba(30,41,59,0.85);'
+                f'border:1px solid #334155;border-radius:6px;'
+                f'padding:5px 11px;font-size:12px;color:#CAE9FF;'
+                f'text-decoration:none;transition:border-color 0.2s;'
+                f'white-space:nowrap;max-width:300px;overflow:hidden;'
+                f'text-overflow:ellipsis">'
+                f'↗ {label}</a>',
+                unsafe_allow_html=True,
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_download_buttons(analysis: dict) -> None:

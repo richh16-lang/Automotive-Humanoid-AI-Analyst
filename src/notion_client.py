@@ -674,7 +674,11 @@ _SECTION_HEADINGS = [
 def _parse_raw_to_sections(raw_text: str) -> dict:
     """
     페이지 블록에서 추출한 raw 텍스트를 섹션 제목 → 내용 dict 로 파싱.
-    Notion heading_2 블록 → 섹션 구분자로 사용.
+
+    헤딩 감지 기준 (오탐 방지):
+    - 라인이 섹션명과 완전히 일치하거나 (h == stripped)
+    - "섹션명:" / "섹션명 " 으로 시작하면서 길이가 섹션명 + 15자 이내인 경우
+    → "메모리 수요가 증가한다" 같은 일반 문장을 섹션 헤딩으로 오인하지 않음
     """
     sections: dict = {}
     current_title: str | None = None
@@ -682,11 +686,18 @@ def _parse_raw_to_sections(raw_text: str) -> dict:
 
     for line in raw_text.split("\n"):
         stripped = line.strip()
-        matched = next(
-            (h for h in _SECTION_HEADINGS
-             if h in stripped and len(stripped) < 80),
-            None,
-        )
+        matched: str | None = None
+
+        for h in _SECTION_HEADINGS:
+            # 정확히 일치하거나, 경미한 접미어 포함 ("핵심 요약:", "핵심 요약 분석" 등)
+            if stripped == h:
+                matched = h
+                break
+            if (stripped.startswith(h + ":") or stripped.startswith(h + " ")) \
+                    and len(stripped) <= len(h) + 15:
+                matched = h
+                break
+
         if matched:
             if current_title and current_lines:
                 sections[current_title] = "\n".join(current_lines).strip()
