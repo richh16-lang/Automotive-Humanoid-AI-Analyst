@@ -100,8 +100,19 @@ div[data-testid="stButton"] > button:not([kind="primary"]):hover {
     padding: 20px 24px; margin-bottom: 16px; transition: box-shadow 0.2s;
 }
 .sec-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
-.sec-title { color: #FFFFFF; font-size: 15px; font-weight: 700; margin-bottom: 10px; }
-.sec-body  { color: #94A3B8; font-size: 13.5px; line-height: 1.7; }
+.sec-title { color: #FFFFFF; font-size: 1.15rem; font-weight: 700;
+             margin-bottom: 12px; letter-spacing: 0.1px; }
+.sec-body  { color: #94A3B8; font-size: 14.8px; line-height: 1.7; }
+
+/* ── Section Number Badge ───────────────────────────────────────────────── */
+.sec-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.4);
+    color: #38BDF8; font-size: 11px; font-weight: 800;
+    min-width: 26px; height: 22px; padding: 0 7px;
+    border-radius: 11px; margin-right: 8px; vertical-align: middle;
+    letter-spacing: 0;
+}
 
 /* ── Highlight Section (Memory / Storage) ───────────────────────────────── */
 .sec-highlight {
@@ -111,7 +122,7 @@ div[data-testid="stButton"] > button:not([kind="primary"]):hover {
     box-shadow: 0 0 28px rgba(56,189,248,0.07);
 }
 .sec-highlight-title {
-    color: #FFFFFF; font-size: 15px; font-weight: 800;
+    color: #FFFFFF; font-size: 1.15rem; font-weight: 800;
     margin-bottom: 12px; letter-spacing: 0.3px;
 }
 .badge-highlight {
@@ -321,13 +332,14 @@ def _md_to_html(text: str) -> str:
         elif stripped.startswith(("- ", "• ", "▸ ", "* ")):
             if not in_ul:
                 lines_html.append(
-                    "<ul style='margin:8px 0;padding-left:0;list-style:none;'>"
+                    "<ul style='margin:10px 0;padding-left:0;list-style:none;'>"
                 )
                 in_ul = True
             lines_html.append(
-                f"<li style='margin:6px 0;padding:6px 12px;"
-                f"border-left:2px solid rgba(56,189,248,0.4);'>"
-                f"{stripped[2:]}</li>"
+                f"<li style='margin:7px 0;padding:7px 14px;"
+                f"border-left:2px solid rgba(56,189,248,0.45);display:flex;gap:8px'>"
+                f"<span style='color:#38BDF8;flex-shrink:0;font-size:13px'>•</span>"
+                f"<span>{stripped[2:]}</span></li>"
             )
         # 일반 단락
         else:
@@ -342,6 +354,32 @@ def _md_to_html(text: str) -> str:
         lines_html.append("</ul>")
 
     return "\n".join(lines_html)
+
+
+@st.cache_data(ttl=7200, show_spinner=False)
+def get_url_title(url: str) -> str:
+    """
+    URL에서 기사 제목을 스크래핑 (Streamlit 캐시 2시간).
+    실패 시 빈 문자열 반환 (도메인 fallback은 호출자가 처리).
+    """
+    try:
+        from src.collector import fetch_page_title
+        return fetch_page_title(url, timeout=4)
+    except Exception:
+        return ""
+
+
+def _needs_title_fetch(title: str, url: str) -> bool:
+    """제목이 실제 기사 제목이 아닌 플레이스홀더(도메인·URL 조각 등)인지 확인."""
+    if not title or not title.strip():
+        return True
+    t = title.strip()
+    if t.startswith("http"):
+        return True
+    # 공백 없이 점이 있으면 도메인처럼 생긴 것 (예: news.google.com, reuters.com)
+    if " " not in t and "." in t and len(t) < 60:
+        return True
+    return False
 
 
 def _collect_source_items(analysis: dict) -> list[dict]:
@@ -409,11 +447,17 @@ def _render_source_cards(analysis: dict, max_items: int = 15, heading: str = "�
         url    = item.get("url", "").strip()
         source = item.get("source", "").strip()
 
-        if not title:
-            try:
-                title = urlparse(url).netloc.replace("www.", "") or url[:50]
-            except Exception:
-                title = url[:50]
+        # ── 제목 없거나 도메인처럼 보이면 URL에서 직접 스크래핑 ──────────────
+        if _needs_title_fetch(title, url):
+            fetched = get_url_title(url)
+            if fetched:
+                title = fetched
+            else:
+                # 스크래핑 실패 시 도메인 fallback
+                try:
+                    title = urlparse(url).netloc.replace("www.", "") or url[:60]
+                except Exception:
+                    title = url[:60]
 
         link_label = f"{source} ↗" if source else "Link ↗"
         title_esc  = title.replace("<", "&lt;").replace(">", "&gt;")
@@ -421,9 +465,11 @@ def _render_source_cards(analysis: dict, max_items: int = 15, heading: str = "�
             f"<div class='src-card-meta'>📰 {source}</div>" if source else ""
         )
 
+        # 출력 형식: ● [기사 제목] [매체명 ↗]
         cards_html += (
             f"<div class='src-card'>"
             f"  <div class='src-card-row'>"
+            f"    <span style='color:#38BDF8;font-size:14px;flex-shrink:0'>●</span>"
             f"    <span class='src-card-title' title='{title_esc}'>{title_esc}</span>"
             f"    <a href='{url}' target='_blank' class='src-card-link'>[{link_label}]</a>"
             f"  </div>"
@@ -458,9 +504,11 @@ def render_sidebar() -> dict:
         st.markdown(
             "<div style='text-align:center;padding:12px 0 6px'>"
             "<span style='font-size:28px'>🔬</span><br>"
-            "<span style='color:#00B4D8;font-weight:800;font-size:18px'>"
+            "<span style='background:linear-gradient(90deg,#FFFFFF,#38BDF8);"
+            "-webkit-background-clip:text;-webkit-text-fill-color:transparent;"
+            "background-clip:text;font-weight:800;font-size:17px'>"
             "Inchang's Agent</span><br>"
-            "<span style='color:#90CAE4;font-size:12px;font-weight:600'>"
+            "<span style='color:#475569;font-size:11.5px;font-weight:500'>"
             "Edge AI (Auto &amp; Humanoid) Intelligence</span>"
             "</div>",
             unsafe_allow_html=True,
@@ -646,16 +694,18 @@ def render_analysis_sections(analysis: dict) -> None:
         st.markdown(analysis.get("raw", ""))
         return
 
-    for title, content in sections.items():
+    total_sections = len(sections)
+    for sec_idx, (title, content) in enumerate(sections.items(), 1):
         color     = _section_color(title)
         html_body = _md_to_html(content)
+        num_badge = f"<span class='sec-num'>{sec_idx}</span>"
 
         if _is_highlight_section(title):
-            # ── 7·8번 섹션 강조 카드 ───────────────────────────────────────
+            # ── 7·8번 섹션 강조 카드 (CORE ANALYSIS) ─────────────────────
             st.markdown(
                 f"<div class='sec-highlight' style='border-left-color:{color}'>"
                 f"<div class='sec-highlight-title'>"
-                f"🔥 {title}"
+                f"🔥 {num_badge}{title}"
                 f"<span class='badge-highlight'>CORE ANALYSIS</span>"
                 f"</div>"
                 f"<div class='sec-body'>{html_body}</div>"
@@ -663,18 +713,21 @@ def render_analysis_sections(analysis: dict) -> None:
                 unsafe_allow_html=True,
             )
         else:
-            # ── 일반 섹션 카드
+            # ── 일반 섹션 카드 ─────────────────────────────────────────────
             st.markdown(
                 f"<div class='sec-card' style='border-left-color:{color}'>"
-                f"<div class='sec-title'>{title}</div>"
+                f"<div class='sec-title'>{num_badge}{title}</div>"
                 f"<div class='sec-body'>{html_body}</div>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
 
+        # 마지막 섹션이 아니면 구분선 삽입
+        if sec_idx < total_sections:
+            st.divider()
+
     # ── 섹션 하단: 참고 기사 목록 (별도 메뉴 아님) ───────────────────────────
-    st.markdown("<hr style='margin:24px 0 8px;border-color:#334155'>",
-                unsafe_allow_html=True)
+    st.divider()
     _render_source_cards(analysis, max_items=20, heading="📎 참고 기사 — 전체 목록")
 
 
@@ -1239,26 +1292,32 @@ def main() -> None:
 
     # ── 헤더 (그라데이션 배경 + 최종 업데이트 시각) ───────────────────────────
     _last_run = st.session_state.get("last_run", "")
-    _last_run_html = (
-        f"<div style='color:#475569;font-size:11px;margin-top:8px;"
-        f"font-weight:500'>🕐 최종 업데이트: "
-        f"<strong style='color:#38BDF8'>{_last_run}</strong></div>"
+    _synced_badge = (
+        f"<span style='display:inline-block;background:rgba(56,189,248,0.12);"
+        f"border:1px solid rgba(56,189,248,0.4);border-radius:20px;"
+        f"color:#38BDF8;font-size:11.5px;font-weight:700;"
+        f"padding:3px 12px;margin-top:10px;letter-spacing:0.3px'>"
+        f"⏱ Last Synced: {_last_run}</span>"
     ) if _last_run else ""
 
     st.markdown(
-        f"<div style='background:linear-gradient(90deg,#0F172A 0%,#1E293B 100%);"
+        f"<div style='background:linear-gradient(135deg,#0F172A 0%,#162032 100%);"
         f"border:1px solid #334155;border-radius:14px;"
-        f"padding:24px 28px;margin-bottom:14px;"
-        f"box-shadow:0 4px 12px rgba(0,0,0,0.35)'>"
-        f"<h1 style='color:#38BDF8;font-size:26px;font-weight:900;"
-        f"margin:0 0 4px;letter-spacing:-0.4px;line-height:1.2'>"
-        f"🔬 Inchang's Agent &mdash; Edge AI (Auto &amp; Humanoid) Intelligence"
+        f"padding:26px 30px 22px;margin-bottom:14px;"
+        f"box-shadow:0 4px 16px rgba(0,0,0,0.4)'>"
+        f"<h1 style='"
+        f"background:linear-gradient(90deg,#FFFFFF 0%,#38BDF8 65%,#00B4D8 100%);"
+        f"-webkit-background-clip:text;-webkit-text-fill-color:transparent;"
+        f"background-clip:text;"
+        f"font-size:1.7rem;font-weight:800;margin:0 0 4px;"
+        f"letter-spacing:-0.3px;line-height:1.25'>"
+        f"🔬 Inchang's Agent — Edge AI (Auto &amp; Humanoid) Intelligence"
         f"</h1>"
-        f"<p style='color:#64748B;font-size:13px;margin:0;font-weight:500'>"
-        f"AI/Semiconductor Daily News &nbsp;·&nbsp; "
+        f"<p style='color:#64748B;font-size:13px;margin:4px 0 0;font-weight:500'>"
+        f"AI / Semiconductor Daily News &nbsp;·&nbsp; "
         f"Automotive / Humanoid / Storage Intelligence"
         f"</p>"
-        f"{_last_run_html}"
+        f"<div style='margin-top:10px'>{_synced_badge}</div>"
         f"</div>",
         unsafe_allow_html=True,
     )
