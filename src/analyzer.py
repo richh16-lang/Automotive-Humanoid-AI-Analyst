@@ -44,7 +44,16 @@ SYSTEM_PROMPT = """당신은 Automotive/AI 반도체 및 스토리지 분야의 
 - 분석에 기여한 AI 모델 표기:
   [분석: {synthesis_model} | 전처리: {filter_model} | 조사: {research_model}]
 - 수치 없는 Storage Workload 분석은 불완전한 것으로 간주
-- 한국어로 작성"""
+- 한국어로 작성
+
+## 출력 포맷 (반드시 준수)
+- 모든 불릿 항목 앞에 문맥에 맞는 이모지 필수:
+  🚀 기술 혁신/제품 출시 | ⚠️ 위험/지연/리스크 | 🏢 기업 동향 | 🛠️ 아키텍처/기술 구조
+  📈 시장 성장 | 📉 하락/부정 | 💡 전략적 시사점 | 🌍 지역별 동향 | ⚙️ 제품/사양
+- 각 항목의 핵심 주제는 **[키워드]** 형식으로 앞에 배치:
+  예) 🚀 **[NVIDIA DRIVE Thor]** Thor SoC 기반 차량용 플랫폼이...
+  예) ⚠️ **[HBM3E 인증 지연]** 삼성전자의 NVIDIA 납기 리스크 확대...
+  예) 🏢 **[SK하이닉스]** HBM 시장 주도권 유지하며..."""
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 10섹션 분석 템플릿
@@ -352,6 +361,19 @@ def analyze_articles(
     final_attribution = _build_model_attribution(filter_meta, research_meta, provider)
     raw_text = raw_text.replace(attribution_placeholder, final_attribution)
 
+    # ── 섹터별 기사 수 (Executive Overview 용) ──────────────────────────────
+    _AI_INFRA_CATS = {
+        "semiconductor", "ai", "memory", "storage", "crossref",
+        "company_news", "earnings", "patent", "research", "conference", "korea",
+    }
+    _SDV_CATS      = {"sdv", "automotive"}
+    _HUMANOID_CATS = {"humanoid"}
+    sector_counts = {
+        "AI Infra": sum(1 for a in articles if getattr(a, "category", "") in _AI_INFRA_CATS),
+        "SDV":      sum(1 for a in articles if getattr(a, "category", "") in _SDV_CATS),
+        "Humanoid": sum(1 for a in articles if getattr(a, "category", "") in _HUMANOID_CATS),
+    }
+
     return {
         "date": date_str,
         "article_count": len(articles),           # 전체 수집 건수
@@ -367,6 +389,7 @@ def analyze_articles(
         # 출처 표시용 title+url 쌍 (중복 URL 제거, Groq 점수 높은 순)
         "source_items": _build_source_items(articles),
         "keywords_found": list({kw for a in articles for kw in a.matched_keywords}),
+        "sector_counts": sector_counts,
     }
 
 

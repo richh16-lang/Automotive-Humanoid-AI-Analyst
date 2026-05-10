@@ -235,12 +235,21 @@ def _build_blocks(analysis: dict) -> list[dict]:
     sources  = analysis.get("sources", [])
 
     # ── 메타 callout ──────────────────────────────────────────
+    sector_counts = analysis.get("sector_counts", {})
+    sector_line = ""
+    if sector_counts:
+        sector_line = (
+            f"\n📊 섹터: AI Infra:{sector_counts.get('AI Infra', 0)}"
+            f"|SDV:{sector_counts.get('SDV', 0)}"
+            f"|Humanoid:{sector_counts.get('Humanoid', 0)}"
+        )
     meta = (
         f"📅 날짜: {analysis.get('date', '-')}  |  "
         f"🤖 AI: {attribution}  |  "
         f"📰 수집 기사: {analysis.get('article_count', 0)}건\n"
         f"🏷 키워드: {', '.join(keywords[:10])}\n"
         f"📡 출처: {', '.join(sources[:8])}"
+        f"{sector_line}"
     )
     blocks.append(_callout_block(meta, "📊"))
     blocks.append(_divider_block())
@@ -1234,6 +1243,19 @@ def fetch_daily_from_notion(date_str: str) -> dict | None:
     # Fix B 이후 저장 형식: "기사 제목  https://..." (두 칸 이상 공백으로 title/url 구분)
     source_items = _parse_source_items_from_raw(raw_text)
 
+    # ── 메타 callout에서 섹터별 기사 수 복원 ─────────────────────────────────
+    sector_counts: dict = {}
+    _sc_m = re.search(
+        r'섹터[:\s]*AI Infra:(\d+)\|SDV:(\d+)\|Humanoid:(\d+)',
+        raw_text,
+    )
+    if _sc_m:
+        sector_counts = {
+            "AI Infra": int(_sc_m.group(1)),
+            "SDV":      int(_sc_m.group(2)),
+            "Humanoid": int(_sc_m.group(3)),
+        }
+
     return {
         "date":              date_str,
         "article_count":     article_count,
@@ -1248,4 +1270,5 @@ def fetch_daily_from_notion(date_str: str) -> dict | None:
         "filter_meta":       {"used_groq": False},
         "research_meta":     {"used_gemini": False},
         "from_notion_cache": True,   # 대시보드에서 캐시 여부 구분용
+        "sector_counts":     sector_counts,
     }

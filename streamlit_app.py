@@ -245,6 +245,33 @@ def _is_highlight_section(title: str) -> bool:
     return any(k in title for k in HIGHLIGHT_SECTIONS)
 
 
+# ── 이모지 감지 헬퍼 (module-level) ─────────────────────────────────────────
+_EMOJI_PREFIXES = (
+    '🚀', '⚠️', '🏢', '🛠️', '📈', '📉', '💡', '🌍', '⚙️',
+    '🔄', '✅', '❌', '🔥', '💰', '🤖', '🔋', '📡', '⚡',
+    '🏭', '🌐', '📌', '🎯', '⭐', '🔍', '💼', '📊', '📋',
+    '🏆', '🛡️', '💻', '🔗', '📝', '🔎',
+)
+
+def _leading_emoji(s: str) -> str:
+    """문자열이 알려진 이모지로 시작하면 해당 이모지 반환, 아니면 빈 문자열."""
+    for em in _EMOJI_PREFIXES:
+        if s.startswith(em):
+            return em
+    return ""
+
+
+# 주요 기업명 목록 (회사 카드 / 색상 강조 공용)
+_COMPANY_NAMES = (
+    "NVIDIA", "Qualcomm", "Mobileye", "Intel", "AMD", "ARM", "TSMC",
+    "Micron", "Western Digital", "Seagate", "Kioxia", "Bosch", "Continental",
+    "NXP", "Renesas", "Infineon", "STMicroelectronics", "Tesla", "Waymo",
+    "Apple", "Google", "Microsoft", "Meta", "Amazon", "BYD", "Huawei",
+    "MediaTek", "Broadcom", "Marvell", "Ambarella",
+    "삼성전자", "SK하이닉스", "LG전자", "현대차", "기아",
+)
+
+
 def _md_to_html(text: str) -> str:
     """마크다운 → Streamlit HTML 변환."""
     import re
@@ -274,8 +301,26 @@ def _md_to_html(text: str) -> str:
         r'<a href="\2" target="_blank" style="color:#38BDF8;text-decoration:none">\1</a>',
         text,
     )
+    # 2.1) **[키워드]** → 배지 (일반 bold 처리 전에 먼저 교체)
+    text = re.sub(
+        r'\*\*\[([^\]]+)\]\*\*',
+        lambda m: (
+            f"<strong style='display:inline-block;background:rgba(56,189,248,0.12);"
+            f"border:1px solid rgba(56,189,248,0.4);border-radius:4px;"
+            f"color:#38BDF8;font-size:11.5px;font-weight:700;"
+            f"padding:1px 8px;margin:0 3px'>[{m.group(1)}]</strong>"
+        ),
+        text,
+    )
     # 2) **굵게**
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong style='color:#FFFFFF'>\1</strong>", text)
+    # 2.2) 주요 기업명 → 하이라이트 색상 (#60A5FA)
+    for _co in _COMPANY_NAMES:
+        text = re.sub(
+            r'(?<![="\'>a-zA-Z가-힣\-])(' + re.escape(_co) + r')(?![a-zA-Z가-힣<])',
+            r'<span style="color:#60A5FA;font-weight:600">\1</span>',
+            text,
+        )
     # 2.5) *이탤릭* — ** 처리 후 남은 단독 * 만 처리 (줄 경계 미침)
     text = re.sub(
         r'(?<!\*)\*(?!\*)([^*\n]+?)(?<!\*)\*(?!\*)',
@@ -416,25 +461,65 @@ def _md_to_html(text: str) -> str:
             )
         # ── 불릿 항목 ─────────────────────────────────────────────────────────
         elif stripped.startswith(("- ", "• ", "▸ ", "* ")):
-            if not in_ul:
+            item_content = stripped[2:]
+            _emoji = _leading_emoji(item_content)
+            if _emoji:
+                # 이모지 접두사 항목 → 스타일 div (불릿 대신)
+                if in_ul:
+                    lines_html.append("</ul>"); in_ul = False
+                if _emoji == '🏢':
+                    lines_html.append(
+                        f"<div style='background:linear-gradient(135deg,#1E3A5F 0%,#1E293B 100%);"
+                        f"border:1px solid rgba(96,165,250,0.3);border-left:3px solid #60A5FA;"
+                        f"border-radius:8px;padding:10px 16px;margin:9px 0;"
+                        f"font-size:13px;color:#BAE6FD'>{item_content}</div>"
+                    )
+                else:
+                    lines_html.append(
+                        f"<div style='display:flex;gap:8px;align-items:flex-start;"
+                        f"padding:9px 16px;margin:6px 0;border-radius:6px;"
+                        f"border-left:2px solid rgba(56,189,248,0.4);"
+                        f"background:rgba(30,41,59,0.5);font-size:13px;"
+                        f"color:#CBD5E1;line-height:1.8'>{item_content}</div>"
+                    )
+            else:
+                if not in_ul:
+                    lines_html.append(
+                        "<ul style='margin:10px 0;padding-left:0;list-style:none;'>"
+                    )
+                    in_ul = True
                 lines_html.append(
-                    "<ul style='margin:10px 0;padding-left:0;list-style:none;'>"
+                    f"<li style='margin:9px 0;padding:8px 16px;"
+                    f"border-left:2px solid rgba(56,189,248,0.45);display:flex;gap:8px;"
+                    f"border-radius:0 6px 6px 0;background:rgba(30,41,59,0.3)'>"
+                    f"<span style='color:#38BDF8;flex-shrink:0;font-size:13px'>•</span>"
+                    f"<span style='color:#CBD5E1;line-height:1.8'>{item_content}</span></li>"
                 )
-                in_ul = True
-            lines_html.append(
-                f"<li style='margin:7px 0;padding:7px 14px;"
-                f"border-left:2px solid rgba(56,189,248,0.45);display:flex;gap:8px'>"
-                f"<span style='color:#38BDF8;flex-shrink:0;font-size:13px'>•</span>"
-                f"<span>{stripped[2:]}</span></li>"
-            )
         # ── 일반 단락 ─────────────────────────────────────────────────────────
         else:
             if in_ul:
                 lines_html.append("</ul>"); in_ul = False
             if stripped:
-                lines_html.append(
-                    f"<p style='margin:6px 0;line-height:1.7'>{stripped}</p>"
-                )
+                _emoji = _leading_emoji(stripped)
+                if _emoji == '🏢':
+                    lines_html.append(
+                        f"<div style='background:linear-gradient(135deg,#1E3A5F 0%,#1E293B 100%);"
+                        f"border:1px solid rgba(96,165,250,0.3);border-left:3px solid #60A5FA;"
+                        f"border-radius:8px;padding:10px 16px;margin:9px 0;"
+                        f"font-size:13px;color:#BAE6FD'>{stripped}</div>"
+                    )
+                elif _emoji:
+                    lines_html.append(
+                        f"<div style='display:flex;gap:8px;align-items:flex-start;"
+                        f"padding:9px 16px;margin:6px 0;border-radius:6px;"
+                        f"border-left:2px solid rgba(56,189,248,0.4);"
+                        f"background:rgba(30,41,59,0.5);font-size:13px;"
+                        f"color:#CBD5E1;line-height:1.8'>{stripped}</div>"
+                    )
+                else:
+                    lines_html.append(
+                        f"<p style='margin:8px 0;line-height:1.8;color:#CBD5E1'>{stripped}</p>"
+                    )
 
     _flush_table()
     if in_ul:
@@ -447,13 +532,22 @@ def _md_to_html(text: str) -> str:
 def get_url_title(url: str) -> str:
     """
     URL에서 기사 제목을 스크래핑 (Streamlit 캐시 2시간).
-    실패 시 빈 문자열 반환 (도메인 fallback은 호출자가 처리).
+    실패 시 도메인 fallback 반환.
     """
     try:
         from src.collector import fetch_page_title
-        return fetch_page_title(url, timeout=4)
+        result = fetch_page_title(url, timeout=4)
+        if result:
+            return result
     except Exception:
-        return ""
+        pass
+    # fallback: 도메인명
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc.replace("www.", "") or url[:40]
+        return f"[출처 확인 중] {domain}"
+    except Exception:
+        return url[:60]
 
 
 def _needs_title_fetch(title: str, url: str) -> bool:
@@ -927,6 +1021,81 @@ def render_article_cards(articles: list) -> None:
 
     if len(articles) > 24:
         st.caption(f"… 외 {len(articles)-24}건 (분석에는 전체 포함)")
+
+
+def render_executive_overview(analysis: dict) -> None:
+    """Executive Overview — 섹터별 기사 수 메트릭 카드 + 에이전트 활동 배너."""
+    from datetime import date, timedelta as _td
+
+    sector_counts = analysis.get("sector_counts", {})
+    ai_infra = sector_counts.get("AI Infra", 0)
+    sdv      = sector_counts.get("SDV",      0)
+    humanoid = sector_counts.get("Humanoid", 0)
+
+    article_count = analysis.get("article_count", 0)
+    section_count = len(analysis.get("sections", {}))
+
+    # ── 전날 delta 계산 ───────────────────────────────────────────────────────
+    yesterday_str = (date.today() - _td(days=1)).isoformat()
+    log  = st.session_state.get("sector_counts_log", {})
+    prev = log.get(yesterday_str, {})
+
+    def _delta_html(current: int, prev_val: int | None) -> str:
+        if prev_val is None:
+            return ""
+        diff  = current - prev_val
+        color = "#22C55E" if diff >= 0 else "#EF4444"
+        sign  = "+" if diff >= 0 else ""
+        return (
+            f"<div style='font-size:11px;color:{color};"
+            f"margin-top:3px;font-weight:600'>{sign}{diff}건 vs 전일</div>"
+        )
+
+    ai_dh  = _delta_html(ai_infra, prev.get("AI Infra"))  if prev else ""
+    sdv_dh = _delta_html(sdv,      prev.get("SDV"))        if prev else ""
+    hum_dh = _delta_html(humanoid, prev.get("Humanoid"))   if prev else ""
+
+    # ── 오늘 sector_counts 로그 저장 (다음 실행 시 delta 계산용) ─────────────
+    today_str = analysis.get("date", date.today().isoformat())
+    if "sector_counts_log" not in st.session_state:
+        st.session_state["sector_counts_log"] = {}
+    if sector_counts:
+        st.session_state["sector_counts_log"][today_str] = sector_counts
+
+    # ── 렌더링 ─────────────────────────────────────────────────────────────────
+    st.markdown(
+        f"""<div style='background:#1E293B;border:1px solid #334155;
+border-radius:12px;padding:18px 24px 16px;margin-bottom:16px'>
+<div style='color:#64748B;font-size:11px;font-weight:700;
+letter-spacing:1.2px;margin-bottom:12px'>📊 EXECUTIVE OVERVIEW</div>
+<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px'>
+  <div style='background:#162032;border:1px solid #334155;border-radius:8px;
+  padding:12px 16px'>
+    <div style='color:#64748B;font-size:11px;margin-bottom:4px'>🤖 AI Infra</div>
+    <div style='color:#E2E8F0;font-size:1.45rem;font-weight:700'>{ai_infra}건</div>
+    {ai_dh}
+  </div>
+  <div style='background:#162032;border:1px solid #334155;border-radius:8px;
+  padding:12px 16px'>
+    <div style='color:#64748B;font-size:11px;margin-bottom:4px'>🚗 SDV / Automotive</div>
+    <div style='color:#E2E8F0;font-size:1.45rem;font-weight:700'>{sdv}건</div>
+    {sdv_dh}
+  </div>
+  <div style='background:#162032;border:1px solid #334155;border-radius:8px;
+  padding:12px 16px'>
+    <div style='color:#64748B;font-size:11px;margin-bottom:4px'>🦾 Humanoid</div>
+    <div style='color:#E2E8F0;font-size:1.45rem;font-weight:700'>{humanoid}건</div>
+    {hum_dh}
+  </div>
+</div>
+<div style='background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.2);
+border-radius:8px;padding:8px 14px;font-size:12px;color:#64748B'>
+🤖 에이전트가 <strong style='color:#38BDF8'>{article_count}건</strong> 뉴스 분석 완료
+→ <strong style='color:#38BDF8'>{section_count}개</strong> 전략 인사이트 생성
+</div>
+</div>""",
+        unsafe_allow_html=True,
+    )
 
 
 def render_analysis_sections(analysis: dict) -> None:
@@ -1818,6 +1987,9 @@ def main() -> None:
 
             # ── 전략 현황판 (상단) ─────────────────────────────────────────────
             render_strategy_dashboard(analysis)
+
+            # ── Executive Overview (섹터별 기사 수 + 에이전트 배너) ────────────
+            render_executive_overview(analysis)
 
             st.markdown("---")
 
