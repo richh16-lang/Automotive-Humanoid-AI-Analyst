@@ -41,165 +41,147 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── 글로벌 CSS (다크 Glassmorphism + Inter/Pretendard 폰트) ──────────────────
+# ── 글로벌 CSS — Professional Dark Navy (#0F172A) ────────────────────────────
 st.markdown("""
 <style>
-/* ── Google Fonts & Pretendard ────────────── */
+/* ── Fonts ───────────────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
 
-/* ── 전체 폰트 (Inter → Pretendard → NanumGothic 순 적용) ── */
 html, body, [class*="css"], .stMarkdown, p, span, div,
 h1, h2, h3, h4, button, input, select, textarea {
-    font-family: 'Inter', 'Pretendard', 'NanumGothic',
-                 -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-family: 'Pretendard', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
 }
 
-/* ── 배경 ─────────────────────────────────── */
-.stApp { background-color: #0D1B2A; }
+/* ── Base Layout ─────────────────────────────────────────────────────────── */
+.stApp { background-color: #0F172A; }
 .block-container { padding-top: 1.2rem; padding-bottom: 2rem; }
+section[data-testid="stSidebar"] { background-color: #0A1020; }
 
-/* ── 사이드바 ─────────────────────────────── */
-section[data-testid="stSidebar"] { background-color: #0A1628; }
-
-/* ── 메인 실행 버튼 ───────────────────────── */
+/* ── Primary Button ─────────────────────────────────────────────────────── */
 div[data-testid="stButton"] > button[kind="primary"] {
-    background: linear-gradient(135deg, #023E8A 0%, #00B4D8 100%);
-    color: #FFFFFF; font-size: 17px; font-weight: 800;
-    padding: 14px 28px; border: none; border-radius: 10px;
-    width: 100%; letter-spacing: 0.5px;
-    box-shadow: 0 4px 15px rgba(0,180,216,0.3);
-    transition: all 0.2s ease;
+    background: linear-gradient(135deg, #0369A1 0%, #38BDF8 100%);
+    color: #0F172A; font-size: 16px; font-weight: 800;
+    padding: 14px 28px; border: none; border-radius: 10px; width: 100%;
+    box-shadow: 0 4px 15px rgba(56,189,248,0.3); transition: all 0.2s ease;
 }
 div[data-testid="stButton"] > button[kind="primary"]:hover {
-    background: linear-gradient(135deg, #0077B6 0%, #48CAE4 100%);
-    box-shadow: 0 6px 20px rgba(0,180,216,0.45);
-    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(56,189,248,0.5); transform: translateY(-1px);
 }
 
-/* ── 보조 버튼 hover 효과 ─────────────────── */
+/* ── Secondary Buttons ──────────────────────────────────────────────────── */
 div[data-testid="stButton"] > button:not([kind="primary"]) {
-    border-radius: 8px !important;
-    transition: all 0.2s ease !important;
+    border-radius: 8px !important; transition: all 0.2s ease !important;
 }
 div[data-testid="stButton"] > button:not([kind="primary"]):hover {
-    border-color: #00B4D8 !important;
-    color: #00B4D8 !important;
+    border-color: #38BDF8 !important; color: #38BDF8 !important;
     transform: translateY(-1px);
 }
 
-/* ── Glassmorphism 메트릭 카드 + hover 애니메이션 ── */
+/* ── Metric Cards ────────────────────────────────────────────────────────── */
 [data-testid="stMetric"] {
-    background: rgba(30, 41, 59, 0.85) !important;
-    border: 1px solid #334155 !important;
-    border-radius: 12px !important;
-    padding: 18px 20px !important;
+    background: #1E293B !important; border: 1px solid #334155 !important;
+    border-radius: 12px !important; padding: 18px 20px !important;
     box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
     transition: all 0.25s ease !important;
-    backdrop-filter: blur(8px);
 }
 [data-testid="stMetric"]:hover {
     transform: translateY(-2px) !important;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.4),
-                0 0 0 1px rgba(0,180,216,0.3) !important;
-    border-color: rgba(0,180,216,0.5) !important;
+    border-color: rgba(56,189,248,0.5) !important;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.4) !important;
 }
-[data-testid="stMetricValue"] { color: #00B4D8 !important; font-weight: 800 !important; }
-[data-testid="stMetricLabel"] { color: #78909C !important; }
+[data-testid="stMetricValue"] { color: #38BDF8 !important; font-weight: 800 !important; }
+[data-testid="stMetricLabel"] { color: #64748B !important; }
 
-/* ── 섹션 카드 (Glassmorphism) ────────────── */
+/* ── Analysis Section Cards ─────────────────────────────────────────────── */
 .sec-card {
-    background: rgba(30, 41, 59, 0.80);
-    border: 1px solid #334155;
-    border-left: 4px solid #00B4D8;
-    border-radius: 10px; padding: 16px 20px; margin-bottom: 14px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    backdrop-filter: blur(4px);
-    transition: box-shadow 0.2s ease;
+    background: #1E293B; border: 1px solid #334155;
+    border-left: 4px solid #38BDF8; border-radius: 0 10px 10px 0;
+    padding: 20px 24px; margin-bottom: 16px; transition: box-shadow 0.2s;
 }
-.sec-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.4); }
-.sec-title { color: #00B4D8; font-size: 15px; font-weight: 700; margin-bottom: 8px; }
-.sec-body  { color: #CAE9FF; font-size: 13.5px; line-height: 1.85; }
+.sec-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
+.sec-title { color: #FFFFFF; font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.sec-body  { color: #94A3B8; font-size: 13.5px; line-height: 1.7; }
 
-/* ── 섹션 7·8 강조 카드 (Glassmorphism) ──── */
+/* ── Highlight Section (Memory / Storage) ───────────────────────────────── */
 .sec-highlight {
-    background: rgba(10, 31, 58, 0.90);
-    border: 1px solid #334155;
-    border-left: 3px solid #00B4D8;
-    border-radius: 0 10px 10px 0;
-    padding: 18px 22px; margin-bottom: 14px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.35),
-                0 0 20px rgba(0,180,216,0.06);
-    backdrop-filter: blur(6px);
+    background: #162032; border: 1px solid #334155;
+    border-left: 4px solid #38BDF8; border-radius: 0 10px 10px 0;
+    padding: 20px 24px; margin-bottom: 16px;
+    box-shadow: 0 0 28px rgba(56,189,248,0.07);
 }
 .sec-highlight-title {
-    color: #00E5FF; font-size: 15px; font-weight: 800;
-    margin-bottom: 10px; letter-spacing: 0.3px;
+    color: #FFFFFF; font-size: 15px; font-weight: 800;
+    margin-bottom: 12px; letter-spacing: 0.3px;
 }
 .badge-highlight {
-    display: inline-block; background: #00B4D8; color: #0D1B2A;
+    display: inline-block; background: #38BDF8; color: #0F172A;
     font-size: 10px; font-weight: 700; padding: 2px 8px;
     border-radius: 10px; margin-left: 8px; vertical-align: middle;
 }
 
-/* ── 기사 카드 (Glassmorphism) ────────────── */
+/* ── Source Cards (left color bar, replaces bullet list) ────────────────── */
+.src-card {
+    background: #1E293B; border-left: 3px solid #38BDF8;
+    border-radius: 0 8px 8px 0; padding: 10px 16px; margin-bottom: 6px;
+    transition: background 0.2s, border-color 0.2s;
+}
+.src-card:hover { background: #243044; border-left-color: #7DD3FC; }
+.src-card-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.src-card-title { color: #E2E8F0; font-size: 13px; font-weight: 500; flex: 1; min-width: 0;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-card-link  { color: #38BDF8; font-size: 11.5px; font-weight: 700;
+                  text-decoration: none; white-space: nowrap; flex-shrink: 0; }
+.src-card-link:hover { text-decoration: underline; color: #7DD3FC; }
+.src-card-meta  { color: #64748B; font-size: 11px; margin-top: 3px; }
+
+/* ── Article Cards ──────────────────────────────────────────────────────── */
 .art-card {
-    background: rgba(26, 40, 64, 0.85); border: 1px solid #1E3A5F;
+    background: #1E293B; border: 1px solid #334155;
     border-radius: 10px; padding: 12px 16px; margin-bottom: 8px;
-    backdrop-filter: blur(4px);
     transition: all 0.2s ease;
 }
-.art-card:hover {
-    border-color: #00B4D8;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-}
-.art-src   { color: #00B4D8; font-size: 10.5px; font-weight: 700;
+.art-card:hover { border-color: #38BDF8; transform: translateY(-1px); }
+.art-src   { color: #38BDF8; font-size: 10.5px; font-weight: 700;
              text-transform: uppercase; letter-spacing: 0.6px; }
-.art-title { color: #E8F4FD; font-size: 13.5px; font-weight: 500; margin: 4px 0; }
-.art-meta  { color: #4A90A4; font-size: 11px; }
-.groq-badge { display: inline-block; background: rgba(0,180,216,0.15);
-              border: 1px solid #00B4D8; color: #00B4D8;
-              font-size: 10px; padding: 1px 7px; border-radius: 8px;
-              margin-left: 6px; }
+.art-title { color: #E2E8F0; font-size: 13.5px; font-weight: 500; margin: 4px 0; }
+.art-meta  { color: #64748B; font-size: 11px; }
+.groq-badge { display: inline-block; background: rgba(56,189,248,0.12);
+              border: 1px solid #38BDF8; color: #38BDF8;
+              font-size: 10px; padding: 1px 7px; border-radius: 8px; margin-left: 6px; }
 
-/* ── LLM 로그 ─────────────────────────────── */
+/* ── LLM Log ────────────────────────────────────────────────────────────── */
 .llm-log {
-    background: #0A1628; border: 1px solid #1E3A5F;
-    border-radius: 6px; padding: 10px 14px; font-size: 12px;
-    color: #546E7A;
-    font-family: 'Fira Code', 'Consolas', 'Monaco', monospace !important;
+    background: #0A1020; border: 1px solid #1E3A5F;
+    border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #64748B;
+    font-family: 'Fira Code', 'Consolas', monospace !important;
     max-height: 160px; overflow-y: auto;
 }
-.log-ok   { color: #00E676; }
-.log-warn { color: #FFB300; }
-.log-err  { color: #FF5252; }
-.log-info { color: #546E7A; }
+.log-ok   { color: #4ADE80; }
+.log-warn { color: #FCD34D; }
+.log-err  { color: #F87171; }
+.log-info { color: #64748B; }
 
-/* ── API 상태 배지 ────────────────────────── */
-.ok-dot   { color: #00E676; font-weight: 700; }
-.err-dot  { color: #FF5252; font-weight: 700; }
-.none-dot { color: #546E7A; font-weight: 700; }
+/* ── Status Dots ────────────────────────────────────────────────────────── */
+.ok-dot   { color: #4ADE80; font-weight: 700; }
+.err-dot  { color: #F87171; font-weight: 700; }
+.none-dot { color: #64748B; font-weight: 700; }
 
-/* ── 탭 ───────────────────────────────────── */
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] { gap: 6px; }
 .stTabs [data-baseweb="tab"] {
-    background: rgba(22, 33, 51, 0.9); border-radius: 6px 6px 0 0;
-    color: #78909C; font-weight: 600; padding: 8px 18px;
-    transition: all 0.2s ease;
+    background: #1E293B; border-radius: 6px 6px 0 0;
+    color: #64748B; font-weight: 600; padding: 8px 18px; transition: all 0.2s ease;
 }
-.stTabs [data-baseweb="tab"]:hover { color: #00B4D8 !important; }
-.stTabs [aria-selected="true"] {
-    background: #00B4D8 !important; color: #0D1B2A !important;
-}
+.stTabs [data-baseweb="tab"]:hover { color: #38BDF8 !important; }
+.stTabs [aria-selected="true"] { background: #38BDF8 !important; color: #0F172A !important; }
 
-/* ── 구분선 ───────────────────────────────── */
-hr { border-color: #1E3A5F; }
+/* ── Divider ────────────────────────────────────────────────────────────── */
+hr { border-color: #334155; }
 
-/* ── 모바일 반응형 ────────────────────────── */
+/* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
     .block-container { padding-left: 0.5rem; padding-right: 0.5rem; }
-    div[data-testid="stButton"] > button[kind="primary"] { font-size: 15px; padding: 12px; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -221,11 +203,11 @@ KEYWORDS_DEFAULT = [
 HIGHLIGHT_SECTIONS = {"메모리", "스토리지 Workload", "Workload", "메모리·스토리지"}
 
 SECTION_COLORS = {
-    "핵심 요약": "#00B4D8", "기술적 의미": "#0096C7",
-    "AI Agent":  "#48CAE4", "비즈니스":    "#ADE8F4",
-    "Ecosystem": "#90E0EF", "향후 전망":   "#0077B6",
-    "메모리":    "#00E5FF", "스토리지":    "#00E5FF",
-    "지역별":    "#48CAE4", "Why Now":     "#ADE8F4",
+    "핵심 요약": "#38BDF8", "기술적 의미": "#60A5FA",
+    "AI Agent":  "#818CF8", "비즈니스":    "#A78BFA",
+    "Ecosystem": "#67E8F9", "향후 전망":   "#34D399",
+    "메모리":    "#22D3EE", "스토리지":    "#22D3EE",
+    "지역별":    "#7DD3FC", "Why Now":     "#FB923C",
 }
 
 INDUSTRY_LINKS = [
@@ -266,15 +248,15 @@ def _md_to_html(text: str) -> str:
     # 1) [텍스트](URL) 링크
     text = re.sub(
         r"\[([^\]]+)\]\((https?://[^\)]+)\)",
-        r'<a href="\2" target="_blank" style="color:#00B4D8;">\1</a>',
+        r'<a href="\2" target="_blank" style="color:#38BDF8;text-decoration:none">\1</a>',
         text,
     )
     # 2) **굵게**
-    text = re.sub(r"\*\*(.+?)\*\*", r"<strong style='color:#E8F4FD'>\1</strong>", text)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong style='color:#FFFFFF'>\1</strong>", text)
     # 3) `코드`
     text = re.sub(
         r"`(.+?)`",
-        r"<code style='background:#1E3A5F;padding:1px 4px;border-radius:3px;color:#90E0EF'>\1</code>",
+        r"<code style='background:#1E293B;padding:1px 5px;border-radius:3px;color:#7DD3FC'>\1</code>",
         text,
     )
     # 3.5) [출처: URL] / [링크: URL] / [Source: URL] → [Link] 하이퍼링크
@@ -283,8 +265,9 @@ def _md_to_html(text: str) -> str:
         r'\[(?:출처|링크|Source|참조|source)[:\s]*(https?://[^\]\s]+)\]',
         lambda m: (
             f'<a href="{m.group(1).strip()}" target="_blank" '
-            f'style="color:#4A90A4;font-size:11px;font-weight:600;'
-            f'text-decoration:none;margin-left:4px">[Link]</a>'
+            f'style="color:#38BDF8;font-size:11px;font-weight:700;'
+            f'text-decoration:none;margin-left:6px;border:1px solid rgba(56,189,248,0.4);'
+            f'padding:1px 6px;border-radius:4px">[Link]</a>'
         ),
         text,
     )
@@ -293,7 +276,7 @@ def _md_to_html(text: str) -> str:
         r'(?<!["\(=])(https?://[^\s<>")\]]+)',
         lambda m: (
             f'<a href="{m.group(1)}" target="_blank" '
-            f'style="color:#4A90A4;font-size:11px;text-decoration:none">'
+            f'style="color:#64748B;font-size:11px;text-decoration:none">'
             f'[link]</a>'
         ),
         text,
@@ -312,40 +295,48 @@ def _md_to_html(text: str) -> str:
                 lines_html.append("</ul>"); in_ul = False
             content = stripped[4:]
             lines_html.append(
-                f"<h4 style='color:#90E0EF;font-size:13px;font-weight:700;"
-                f"margin:12px 0 4px;padding-bottom:3px;"
-                f"border-bottom:1px solid rgba(0,180,216,0.2)'>{content}</h4>"
+                f"<h4 style='color:#7DD3FC;font-size:13px;font-weight:700;"
+                f"margin:14px 0 4px;padding-bottom:3px;"
+                f"border-bottom:1px solid rgba(56,189,248,0.15)'>{content}</h4>"
             )
         elif stripped.startswith("## "):
             if in_ul:
                 lines_html.append("</ul>"); in_ul = False
             content = stripped[3:]
             lines_html.append(
-                f"<h3 style='color:#ADE8F4;font-size:14px;font-weight:700;"
-                f"margin:14px 0 5px;padding-bottom:3px;"
-                f"border-bottom:1px solid rgba(0,180,216,0.3)'>{content}</h3>"
+                f"<h3 style='color:#BAE6FD;font-size:14px;font-weight:700;"
+                f"margin:16px 0 5px;padding-bottom:3px;"
+                f"border-bottom:1px solid rgba(56,189,248,0.25)'>{content}</h3>"
             )
         elif stripped.startswith("# "):
             if in_ul:
                 lines_html.append("</ul>"); in_ul = False
             content = stripped[2:]
             lines_html.append(
-                f"<h2 style='color:#CAE9FF;font-size:15px;font-weight:800;"
-                f"margin:16px 0 6px;padding-bottom:4px;"
-                f"border-bottom:1px solid rgba(0,180,216,0.4)'>{content}</h2>"
+                f"<h2 style='color:#E2E8F0;font-size:15px;font-weight:800;"
+                f"margin:18px 0 6px;padding-bottom:4px;"
+                f"border-bottom:1px solid rgba(56,189,248,0.35)'>{content}</h2>"
             )
         # 불릿 항목
         elif stripped.startswith(("- ", "• ", "▸ ", "* ")):
             if not in_ul:
-                lines_html.append("<ul style='margin:6px 0;padding-left:18px;'>")
+                lines_html.append(
+                    "<ul style='margin:8px 0;padding-left:0;list-style:none;'>"
+                )
                 in_ul = True
-            lines_html.append(f"<li style='margin:3px 0'>{stripped[2:]}</li>")
+            lines_html.append(
+                f"<li style='margin:6px 0;padding:6px 12px;"
+                f"border-left:2px solid rgba(56,189,248,0.4);'>"
+                f"{stripped[2:]}</li>"
+            )
         # 일반 단락
         else:
             if in_ul:
                 lines_html.append("</ul>"); in_ul = False
             if stripped:
-                lines_html.append(f"<p style='margin:4px 0'>{stripped}</p>")
+                lines_html.append(
+                    f"<p style='margin:6px 0;line-height:1.7'>{stripped}</p>"
+                )
 
     if in_ul:
         lines_html.append("</ul>")
@@ -353,29 +344,20 @@ def _md_to_html(text: str) -> str:
     return "\n".join(lines_html)
 
 
-def _render_source_items(analysis: dict) -> None:
+def _collect_source_items(analysis: dict) -> list[dict]:
     """
-    주요 출처 기사를 리스트 형식으로 렌더링.
-
-    표시 형식:
-        ● **기사 제목**  [Link](url)
-           출처명 · 요약 한 줄
-
-    데이터 우선순위:
-      1) analysis["source_items"]  (live 분석: title+url+summary 완전 세트)
-      2) analysis["articles"]      (Article 객체에서 추출)
-      3) analysis["source_urls"]   (URL만 있을 때 → 도메인 표시)
+    source_items 데이터를 우선순위 순으로 수집.
+      1) analysis["source_items"]  — live 분석 또는 Notion 캐시 복원
+      2) analysis["articles"]      — Article 객체 리스트
+      3) analysis["source_urls"]   — URL만 있는 경우 (도메인 fallback)
     """
     from urllib.parse import urlparse
 
-    # ── 데이터 소스 결정 ──────────────────────────────────────────────────────
-    items: list[dict] = analysis.get("source_items", [])
+    items: list[dict] = list(analysis.get("source_items", []))
 
     if not items:
-        # Article 객체 리스트에서 변환
-        raw_articles = analysis.get("articles", [])
         seen: set[str] = set()
-        for a in raw_articles:
+        for a in analysis.get("articles", []):
             url = getattr(a, "url", None)
             if not url or url in seen:
                 continue
@@ -388,7 +370,6 @@ def _render_source_items(analysis: dict) -> None:
             })
 
     if not items:
-        # 최후: URL만 있는 경우
         for url in analysis.get("source_urls", [])[:20]:
             if not url:
                 continue
@@ -398,69 +379,60 @@ def _render_source_items(analysis: dict) -> None:
                 domain = url[:40]
             items.append({"title": domain, "url": url, "source": "", "summary": ""})
 
+    return items
+
+
+def _render_source_cards(analysis: dict, max_items: int = 15, heading: str = "📎 참고 기사") -> None:
+    """
+    출처 기사를 좌측 컬러바 카드 형태로 렌더링.
+    표시 형식:  ┃ 기사 제목  [매체명 ↗]
+                  📰 출처
+
+    섹션 하단에 삽입되는 용도. 별도 메뉴가 아님.
+    """
+    from urllib.parse import urlparse
+
+    items = _collect_source_items(analysis)
     if not items:
         return
 
-    st.markdown("#### 🔗 주요 출처 기사")
+    st.markdown(
+        f"<div style='margin-top:20px;margin-bottom:6px;"
+        f"color:#64748B;font-size:12px;font-weight:600;"
+        f"letter-spacing:0.5px;text-transform:uppercase'>{heading}</div>",
+        unsafe_allow_html=True,
+    )
 
-    # ── CSS (한 번만 삽입) ────────────────────────────────────────────────────
-    st.markdown("""
-<style>
-.src-item {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 10px 14px; border-bottom: 1px solid #1E3A5F;
-}
-.src-item:last-child { border-bottom: none; }
-.src-bullet { color: #00B4D8; font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-.src-body   { flex: 1; min-width: 0; }
-.src-title  { color: #E8F4FD; font-size: 13.5px; font-weight: 700;
-              line-height: 1.5; word-break: break-word; }
-.src-link   { color: #4A90A4; font-size: 11.5px; font-weight: 600;
-              text-decoration: none; margin-left: 6px;
-              white-space: nowrap; vertical-align: middle; }
-.src-link:hover { color: #00B4D8; text-decoration: underline; }
-.src-meta   { color: #4A90A4; font-size: 11px; margin-top: 3px; }
-.src-summary{ color: #78909C; font-size: 12px; margin-top: 4px;
-              line-height: 1.6; word-break: break-word; }
-</style>
-""", unsafe_allow_html=True)
+    cards_html = "<div>"
+    for item in items[:max_items]:
+        title  = item.get("title", "").strip()
+        url    = item.get("url", "").strip()
+        source = item.get("source", "").strip()
 
-    rows_html = ""
-    for item in items[:20]:
-        title   = item.get("title", "").strip()
-        url     = item.get("url", "").strip()
-        source  = item.get("source", "").strip()
-        summary = item.get("summary", "").strip()
-
-        # 제목 없으면 도메인 fallback
         if not title:
             try:
                 title = urlparse(url).netloc.replace("www.", "") or url[:50]
             except Exception:
                 title = url[:50]
 
-        title_escaped = title.replace("<", "&lt;").replace(">", "&gt;")
-
-        rows_html += (
-            f"<div class='src-item'>"
-            f"  <span class='src-bullet'>●</span>"
-            f"  <div class='src-body'>"
-            f"    <span class='src-title'>{title_escaped}"
-            f"      <a href='{url}' target='_blank' class='src-link'>[Link]</a>"
-            f"    </span>"
+        link_label = f"{source} ↗" if source else "Link ↗"
+        title_esc  = title.replace("<", "&lt;").replace(">", "&gt;")
+        meta_div   = (
+            f"<div class='src-card-meta'>📰 {source}</div>" if source else ""
         )
-        if source:
-            rows_html += f"<div class='src-meta'>📰 {source}</div>"
-        if summary:
-            summary_escaped = summary.replace("<", "&lt;").replace(">", "&gt;")
-            rows_html += f"<div class='src-summary'>{summary_escaped}</div>"
-        rows_html += "  </div></div>"
 
-    st.markdown(
-        f"<div style='background:rgba(10,22,40,0.75);border:1px solid #1E3A5F;"
-        f"border-radius:10px;overflow:hidden'>{rows_html}</div>",
-        unsafe_allow_html=True,
-    )
+        cards_html += (
+            f"<div class='src-card'>"
+            f"  <div class='src-card-row'>"
+            f"    <span class='src-card-title' title='{title_esc}'>{title_esc}</span>"
+            f"    <a href='{url}' target='_blank' class='src-card-link'>[{link_label}]</a>"
+            f"  </div>"
+            f"  {meta_div}"
+            f"</div>"
+        )
+    cards_html += "</div>"
+
+    st.markdown(cards_html, unsafe_allow_html=True)
 
 
 def _append_log(msg: str, level: str = "info") -> None:
@@ -623,8 +595,8 @@ def render_meta_banner(analysis: dict) -> None:
     attr = analysis.get("model_attribution", "")
     if attr:
         st.markdown(
-            f"<div style='background:#0A1628;border-left:3px solid #00B4D8;"
-            f"padding:8px 14px;border-radius:4px;color:#546E7A;font-size:12px;"
+            f"<div style='background:#1E293B;border-left:3px solid #38BDF8;"
+            f"padding:8px 14px;border-radius:4px;color:#64748B;font-size:12px;"
             f"margin:6px 0 10px'>🤖 {attr}</div>",
             unsafe_allow_html=True,
         )
@@ -654,7 +626,7 @@ def render_article_cards(articles: list) -> None:
             f"<div class='art-src'>{art.source} · {pub}{score_badge}</div>"
             f"<div class='art-title'>"
             f"<a href='{art.url}' target='_blank' "
-            f"style='color:#E8F4FD;text-decoration:none'>{art.title[:80]}</a>"
+            f"style='color:#E2E8F0;text-decoration:none'>{art.title[:80]}</a>"
             f"</div>"
             f"<div class='art-meta'>🏷 {kws}</div>"
             f"</div>"
@@ -667,7 +639,7 @@ def render_article_cards(articles: list) -> None:
 
 
 def render_analysis_sections(analysis: dict) -> None:
-    """10개 섹션 렌더링 — 섹션 7·8 특별 강조."""
+    """10개 섹션 렌더링 — 섹션 7·8 특별 강조. 하단에 참고 기사 목록 삽입."""
     sections = analysis.get("sections", {})
     if not sections:
         st.warning("섹션 파싱 실패 — Raw 결과를 표시합니다.")
@@ -675,13 +647,13 @@ def render_analysis_sections(analysis: dict) -> None:
         return
 
     for title, content in sections.items():
-        color    = _section_color(title)
+        color     = _section_color(title)
         html_body = _md_to_html(content)
 
         if _is_highlight_section(title):
             # ── 7·8번 섹션 강조 카드 ───────────────────────────────────────
             st.markdown(
-                f"<div class='sec-highlight'>"
+                f"<div class='sec-highlight' style='border-left-color:{color}'>"
                 f"<div class='sec-highlight-title'>"
                 f"🔥 {title}"
                 f"<span class='badge-highlight'>CORE ANALYSIS</span>"
@@ -691,14 +663,19 @@ def render_analysis_sections(analysis: dict) -> None:
                 unsafe_allow_html=True,
             )
         else:
-            # ── 일반 섹션 카드 (st.expander 제거 — arrow 텍스트 렌더링 버그 회피)
+            # ── 일반 섹션 카드
             st.markdown(
-                f"<div class='sec-card'>"
+                f"<div class='sec-card' style='border-left-color:{color}'>"
                 f"<div class='sec-title'>{title}</div>"
                 f"<div class='sec-body'>{html_body}</div>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
+
+    # ── 섹션 하단: 참고 기사 목록 (별도 메뉴 아님) ───────────────────────────
+    st.markdown("<hr style='margin:24px 0 8px;border-color:#334155'>",
+                unsafe_allow_html=True)
+    _render_source_cards(analysis, max_items=20, heading="📎 참고 기사 — 전체 목록")
 
 
 def render_strategy_dashboard(analysis: dict) -> None:
@@ -712,11 +689,11 @@ def render_strategy_dashboard(analysis: dict) -> None:
     # ── Notion 캐시 배너 ───────────────────────────────────────────────────────
     if from_notion:
         notion_url = analysis.get("notion_url", "")
-        notion_link = f' &nbsp;<a href="{notion_url}" target="_blank" style="color:#00B4D8">Notion에서 보기 ↗</a>' if notion_url else ""
+        notion_link = f' &nbsp;<a href="{notion_url}" target="_blank" style="color:#38BDF8">Notion에서 보기 ↗</a>' if notion_url else ""
         st.markdown(
-            f"<div style='background:rgba(0,180,216,0.08);border:1px solid #334155;"
-            f"border-left:3px solid #00B4D8;border-radius:6px;"
-            f"padding:8px 14px;margin-bottom:10px;font-size:12px;color:#78909C'>"
+            f"<div style='background:rgba(56,189,248,0.06);border:1px solid #334155;"
+            f"border-left:3px solid #38BDF8;border-radius:6px;"
+            f"padding:8px 14px;margin-bottom:10px;font-size:12px;color:#64748B'>"
             f"📥 Notion 캐시에서 로드된 데이터 ({analysis.get('date','-')}) — "
             f"기사 단위 지표(카테고리·Groq 점수)는 재분석 시 확인 가능{notion_link}"
             f"</div>",
@@ -725,8 +702,8 @@ def render_strategy_dashboard(analysis: dict) -> None:
 
     # ── Last Updated 바 ────────────────────────────────────────────────────────
     st.markdown(
-        f"<div style='text-align:right;color:#546E7A;font-size:11px;"
-        f"margin-bottom:6px'>🕐 Last Updated: <strong style='color:#00B4D8'>"
+        f"<div style='text-align:right;color:#475569;font-size:11px;"
+        f"margin-bottom:6px'>🕐 Last Updated: <strong style='color:#38BDF8'>"
         f"{last_run}</strong></div>",
         unsafe_allow_html=True,
     )
@@ -751,43 +728,73 @@ def render_strategy_dashboard(analysis: dict) -> None:
 
     # ── 2. Top 3 핵심 전략 인사이트 ───────────────────────────────────────────
     insight_title = next((t for t in sections if "핵심 요약" in t or "요약" in t), None)
+    source_items  = _collect_source_items(analysis)
+
     if insight_title:
         raw_insights = sections[insight_title]
-        # 불릿 항목 추출
-        bullets = [l.strip().lstrip("-•▸* ").strip()
+        # 불릿 항목 추출 (① ② ③ 또는 - • 등)
+        bullets = [l.strip().lstrip("-•▸*①②③④⑤⑥⑦⑧⑨ ").strip()
                    for l in raw_insights.split("\n")
-                   if l.strip().startswith(("-", "•", "▸", "*", "1", "2", "3"))]
+                   if l.strip() and not l.strip().startswith("#")]
+        bullets = [b for b in bullets if len(b) > 10]  # 너무 짧은 줄 제외
         top3 = bullets[:3]
     else:
         top3 = []
 
     st.markdown(
         "<div style='background:#0F172A;"
-        "border-left:5px solid #00B4D8;"
+        "border-left:5px solid #38BDF8;"
         "border-radius:0 10px 10px 0;"
         "padding:20px 24px;margin-bottom:16px;"
         "box-shadow:0 4px 14px rgba(0,0,0,0.45)'>"
-        "<div style='color:#00E5FF;font-size:1.1rem;font-weight:800;"
-        "margin-bottom:12px;letter-spacing:0.2px'>"
+        "<div style='color:#38BDF8;font-size:1.05rem;font-weight:800;"
+        "margin-bottom:14px;letter-spacing:0.2px'>"
         "💡 오늘의 3대 핵심 전략 인사이트</div>",
         unsafe_allow_html=True,
     )
     if top3:
         for idx, insight in enumerate(top3, 1):
-            clean = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", insight)
+            # 1) [출처: URL] 패턴에서 URL 추출
+            url_m      = re.search(
+                r'\[(?:출처|링크|Source|참조)[:\s]*(https?://[^\]\s]+)\]', insight
+            )
+            source_url = url_m.group(1).strip() if url_m else ""
+
+            # 2) URL이 없으면 source_items에서 순서대로 연결
+            if not source_url and source_items and (idx - 1) < len(source_items):
+                source_url = source_items[idx - 1].get("url", "")
+
+            # 3) 텍스트 정제
+            clean = re.sub(
+                r'\[(?:출처|링크|Source|참조)[:\s]*https?://[^\]]+\]', '', insight
+            )
+            clean = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", clean)
             clean = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", clean)
-            clean = clean[:200]
+            clean = clean.strip()[:220]
+
+            # 4) [Link] 버튼 생성
+            link_html = (
+                f' <a href="{source_url}" target="_blank" '
+                f'style="color:#38BDF8;font-size:11px;font-weight:700;'
+                f'text-decoration:none;border:1px solid rgba(56,189,248,0.5);'
+                f'padding:1px 7px;border-radius:4px;vertical-align:middle;">[Link]</a>'
+            ) if source_url else ""
+
             st.markdown(
-                f"<div style='display:flex;gap:12px;margin-bottom:10px;align-items:flex-start'>"
-                f"<span style='background:#00B4D8;color:#0D1B2A;font-size:11px;font-weight:800;"
-                f"padding:3px 8px;border-radius:12px;white-space:nowrap;margin-top:2px'>0{idx}</span>"
-                f"<span style='color:#CAE9FF;font-size:13.5px;line-height:1.7'>{clean}</span>"
+                f"<div style='display:flex;gap:12px;margin-bottom:12px;"
+                f"align-items:flex-start;padding:10px 14px;"
+                f"background:#1E293B;border-radius:8px'>"
+                f"<span style='background:#38BDF8;color:#0F172A;font-size:11px;"
+                f"font-weight:800;padding:3px 9px;border-radius:12px;"
+                f"white-space:nowrap;margin-top:2px;flex-shrink:0'>{idx:02d}</span>"
+                f"<span style='color:#94A3B8;font-size:13.5px;line-height:1.7'>"
+                f"{clean}{link_html}</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
     else:
         st.markdown(
-            "<p style='color:#546E7A;font-size:13px'>분석 실행 후 표시됩니다.</p>",
+            "<p style='color:#64748B;font-size:13px'>분석 실행 후 표시됩니다.</p>",
             unsafe_allow_html=True,
         )
     st.markdown("</div>", unsafe_allow_html=True)
@@ -822,11 +829,11 @@ def render_strategy_dashboard(analysis: dict) -> None:
         values = [c[1] for c in sorted_cats]
         import pandas as pd
         df = pd.DataFrame({"건수": values}, index=labels)
-        st.bar_chart(df, color="#00B4D8", height=220)
+        st.bar_chart(df, color="#38BDF8", height=220)
     elif from_notion:
         st.markdown(
-            "<div style='background:rgba(30,41,59,0.6);border:1px solid #334155;"
-            "border-radius:8px;padding:20px;text-align:center;color:#546E7A;font-size:13px'>"
+            "<div style='background:#1E293B;border:1px solid #334155;"
+            "border-radius:8px;padding:20px;text-align:center;color:#64748B;font-size:13px'>"
             "📥 Notion 캐시 로드 시 기사 카테고리 분포는 표시되지 않습니다.<br>"
             "<span style='font-size:11px'>▶ 실시간 전략 분석 실행 후 확인 가능</span>"
             "</div>",
@@ -834,9 +841,7 @@ def render_strategy_dashboard(analysis: dict) -> None:
         )
     else:
         st.caption("기사 수집 후 표시됩니다.")
-
-    # ── 4. 주요 출처 기사 목록 ────────────────────────────────────────────────
-    _render_source_items(analysis)
+    # ※ 출처 기사 목록은 [상세 분석 리포트] 섹션 하단에 표시됩니다.
 
 
 def render_download_buttons(analysis: dict) -> None:
@@ -1235,21 +1240,21 @@ def main() -> None:
     # ── 헤더 (그라데이션 배경 + 최종 업데이트 시각) ───────────────────────────
     _last_run = st.session_state.get("last_run", "")
     _last_run_html = (
-        f"<div style='color:rgba(202,233,255,0.45);font-size:11px;margin-top:8px;"
+        f"<div style='color:#475569;font-size:11px;margin-top:8px;"
         f"font-weight:500'>🕐 최종 업데이트: "
-        f"<strong style='color:#00B4D8'>{_last_run}</strong></div>"
+        f"<strong style='color:#38BDF8'>{_last_run}</strong></div>"
     ) if _last_run else ""
 
     st.markdown(
-        f"<div style='background:linear-gradient(90deg,#0f172a 0%,#1e293b 100%);"
+        f"<div style='background:linear-gradient(90deg,#0F172A 0%,#1E293B 100%);"
         f"border:1px solid #334155;border-radius:14px;"
         f"padding:24px 28px;margin-bottom:14px;"
         f"box-shadow:0 4px 12px rgba(0,0,0,0.35)'>"
-        f"<h1 style='color:#00B4D8;font-size:26px;font-weight:900;"
+        f"<h1 style='color:#38BDF8;font-size:26px;font-weight:900;"
         f"margin:0 0 4px;letter-spacing:-0.4px;line-height:1.2'>"
         f"🔬 Inchang's Agent &mdash; Edge AI (Auto &amp; Humanoid) Intelligence"
         f"</h1>"
-        f"<p style='color:#546E7A;font-size:13px;margin:0;font-weight:500'>"
+        f"<p style='color:#64748B;font-size:13px;margin:0;font-weight:500'>"
         f"AI/Semiconductor Daily News &nbsp;·&nbsp; "
         f"Automotive / Humanoid / Storage Intelligence"
         f"</p>"
