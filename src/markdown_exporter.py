@@ -132,10 +132,26 @@ def _clean_and_format(text: str) -> str:
     분석 텍스트를 NotebookLM에 최적화된 Markdown으로 정리.
     - 기존 ## 헤딩을 ### 으로 조정 (문서 계층 유지)
     - 출처 URL 형식 정규화
+    - 마크다운 테이블 열 정렬 (파이프 세로 정렬)
     - 빈 줄 정리
     """
     if not text:
         return ""
+
+    # ── 마크다운 테이블 감지 & 정렬 ─────────────────────────────────────────
+    # 테이블 블록을 찾아 열 너비를 맞춘 뒤 앞뒤 빈 줄 보장
+    def _reformat_table_block(m: re.Match) -> str:
+        raw_table = m.group(0).strip()
+        formatted  = _format_md_table(raw_table)
+        return f"\n\n{formatted}\n\n"
+
+    # 테이블: 2줄 이상의 |...| 블록
+    text = re.sub(
+        r"(?:^|\n)((?:\|[^\n]+\|\n?){2,})",
+        _reformat_table_block,
+        text,
+        flags=re.MULTILINE,
+    )
 
     # ## → ### (이미 ## 섹션 안에 있으므로)
     text = re.sub(r"^##\s+", "### ", text, flags=re.MULTILINE)
@@ -159,6 +175,68 @@ def _clean_and_format(text: str) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
 
     return text.strip()
+
+
+def _format_md_table(table_text: str) -> str:
+    """
+    마크다운 테이블 열 너비 정렬 (파이프 세로 정렬).
+    Genspark / PPT 가독성 최적화.
+
+    입력:  | A | B |
+           |---|---|
+           | 값1 | 값2 |
+
+    출력:  | A   | B   |
+           | --- | --- |
+           | 값1 | 값2 |
+    """
+    lines = [ln for ln in table_text.split("\n") if ln.strip()]
+    if not lines:
+        return table_text
+
+    parsed:   list[list[str] | None] = []   # None = 구분선
+    sep_idx:  int | None = None
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not (stripped.startswith("|") and stripped.endswith("|")):
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if cells and all(re.match(r"^:?-+:?$", c) for c in cells if c.strip()):
+            parsed.append(None)
+            sep_idx = len(parsed) - 1
+        else:
+            parsed.append(cells)
+
+    if not parsed:
+        return table_text
+
+    # 열 수 & 최대 너비 계산
+    num_cols = max((len(r) for r in parsed if r is not None), default=0)
+    if num_cols == 0:
+        return table_text
+
+    col_widths = [3] * num_cols   # 최소 3 (구분선 --- 에 맞춤)
+    for row in parsed:
+        if row is None:
+            continue
+        for j, cell in enumerate(row[:num_cols]):
+            col_widths[j] = max(col_widths[j], len(cell))
+
+    # 포맷된 라인 생성
+    result: list[str] = []
+    for row in parsed:
+        if row is None:
+            cells_str = " | ".join("-" * w for w in col_widths)
+        else:
+            padded = []
+            for j in range(num_cols):
+                cell = row[j] if j < len(row) else ""
+                padded.append(cell.ljust(col_widths[j]))
+            cells_str = " | ".join(padded)
+        result.append(f"| {cells_str} |")
+
+    return "\n".join(result)
 
 
 def _short_url(url: str) -> str:

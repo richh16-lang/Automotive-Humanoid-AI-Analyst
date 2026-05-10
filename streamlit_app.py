@@ -249,13 +249,20 @@ def _md_to_html(text: str) -> str:
     """마크다운 → Streamlit HTML 변환."""
     import re
 
-    # ── 인라인 마크다운 치환 (순서 중요) ─────────────────────────────────────
-    # 0) 고아 ** 정리 — LLM이 줄 끝/줄 처음에 짝 없는 ** 를 남기는 경우
-    #    줄 끝 "text**"  → "text"
-    #    줄 처음 "**text" → "text" (단 "**text**" 는 아래 2단계에서 처리)
-    text = re.sub(r"\*\*$", "", text, flags=re.MULTILINE)      # 줄 끝 고아 **
-    text = re.sub(r"^\*\*(?!\*)", "", text, flags=re.MULTILINE) # 줄 처음 고아 **
+    # ── Step 0: 고아 ** 정리 ───────────────────────────────────────────────────
+    # 한 줄에 ** 개수가 홀수이면 짝 없는 고아 **가 존재.
+    # → 해당 줄의 마지막 ** 를 제거 (내용 잘림 방지).
+    # "**Samsung**, **SK Hynix**" → 4개(짝수) → 건드리지 않음 ✓
+    # "위협받는 기업 : **"        → 1개(홀수) → 마지막 ** 제거 ✓
+    fixed_lines = []
+    for _ln in text.split("\n"):
+        if _ln.count("**") % 2 == 1:
+            _idx = _ln.rfind("**")
+            _ln  = _ln[:_idx] + _ln[_idx + 2:]
+        fixed_lines.append(_ln)
+    text = "\n".join(fixed_lines)
 
+    # ── 인라인 마크다운 치환 (순서 중요) ─────────────────────────────────────
     # 1) [텍스트](URL) 링크
     text = re.sub(
         r"\[([^\]]+)\]\((https?://[^\)]+)\)",
@@ -293,14 +300,75 @@ def _md_to_html(text: str) -> str:
         text,
     )
 
-    # ── 줄 단위 처리 (제목 / 불릿 / 단락) ───────────────────────────────────
-    lines_html: list[str] = []
+    # ── 줄 단위 처리 (테이블 / 제목 / 불릿 / 단락) ──────────────────────────
+    lines_html:    list[str] = []
+    pending_table: list[str] = []
     in_ul = False
+
+    def _render_md_table(tlines: list[str]) -> str:
+        """마크다운 테이블 라인 목록 → HTML <table> (다크 테마)."""
+        rows: list[tuple[list[str], bool]] = []
+        sep_seen = False
+
+        for tline in tlines:
+            stripped_t = tline.strip()
+            if not stripped_t.startswith("|"):
+                continue
+            cells = [c.strip() for c in stripped_t.strip("|").split("|")]
+            # 구분선 감지: |---|---|
+            if cells and all(re.match(r"^:?-+:?$", c) for c in cells if c.strip()):
+                sep_seen = True
+                continue
+            rows.append((cells, not sep_seen))  # (cells, is_header)
+
+        if not rows:
+            return ""
+
+        html = (
+            "<div style='overflow-x:auto;margin:14px 0'>"
+            "<table style='width:100%;border-collapse:collapse;"
+            "font-size:13px;line-height:1.5'>"
+        )
+        for cells, is_hdr in rows:
+            html += "<tr>"
+            for cell in cells:
+                if is_hdr:
+                    html += (
+                        f"<th style='background:#1E3A5F;color:#BAE6FD;"
+                        f"font-weight:700;padding:8px 14px;"
+                        f"border:1px solid #334155;text-align:left'>{cell}</th>"
+                    )
+                else:
+                    html += (
+                        f"<td style='color:#94A3B8;padding:7px 14px;"
+                        f"border:1px solid #1E293B;"
+                        f"background:#162032'>{cell}</td>"
+                    )
+            html += "</tr>"
+        html += "</table></div>"
+        return html
+
+    def _flush_table() -> None:
+        nonlocal pending_table
+        if pending_table:
+            rendered = _render_md_table(pending_table)
+            if rendered:
+                lines_html.append(rendered)
+            pending_table = []
 
     for line in text.split("\n"):
         stripped = line.strip()
 
-        # 마크다운 헤딩 (###, ##, #)
+        # ── 마크다운 테이블 행 감지 (|...|) ──────────────────────────────────
+        if stripped.startswith("|") and stripped.endswith("|") and len(stripped) > 2:
+            if in_ul:
+                lines_html.append("</ul>"); in_ul = False
+            pending_table.append(line)
+            continue
+        else:
+            _flush_table()
+
+        # ── 마크다운 헤딩 (###, ##, #) ────────────────────────────────────────
         if stripped.startswith("### "):
             if in_ul:
                 lines_html.append("</ul>"); in_ul = False
@@ -328,7 +396,7 @@ def _md_to_html(text: str) -> str:
                 f"margin:18px 0 6px;padding-bottom:4px;"
                 f"border-bottom:1px solid rgba(56,189,248,0.35)'>{content}</h2>"
             )
-        # 불릿 항목
+        # ── 불릿 항목 ─────────────────────────────────────────────────────────
         elif stripped.startswith(("- ", "• ", "▸ ", "* ")):
             if not in_ul:
                 lines_html.append(
@@ -341,7 +409,7 @@ def _md_to_html(text: str) -> str:
                 f"<span style='color:#38BDF8;flex-shrink:0;font-size:13px'>•</span>"
                 f"<span>{stripped[2:]}</span></li>"
             )
-        # 일반 단락
+        # ── 일반 단락 ─────────────────────────────────────────────────────────
         else:
             if in_ul:
                 lines_html.append("</ul>"); in_ul = False
@@ -350,6 +418,7 @@ def _md_to_html(text: str) -> str:
                     f"<p style='margin:6px 0;line-height:1.7'>{stripped}</p>"
                 )
 
+    _flush_table()
     if in_ul:
         lines_html.append("</ul>")
 

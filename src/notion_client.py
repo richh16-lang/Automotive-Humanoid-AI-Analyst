@@ -266,19 +266,29 @@ def _build_blocks(analysis: dict) -> list[dict]:
 
             if content.strip():
                 is_summary = any(k in title for k in ("핵심 요약", "요약", "Summary"))
-                bullets = _parse_bullets(content, keep_links=is_summary)
-                if bullets:
-                    for b in bullets:
-                        if isinstance(b, list):  # rich_text with links
-                            blocks.append({
-                                "object": "block",
-                                "type": "bulleted_list_item",
-                                "bulleted_list_item": {"rich_text": b},
-                            })
-                        else:
-                            blocks.append(_bullet_block(b))
-                else:
-                    blocks.extend(_paragraph_blocks(content))
+                # 마크다운 테이블이 섞인 경우 테이블 블록과 일반 텍스트를 분리 처리
+                segments = _split_content_tables(content)
+                for seg_text, is_table in segments:
+                    if is_table and seg_text.strip():
+                        rows = _parse_md_table_rows(seg_text)
+                        if rows:
+                            blocks.append(_table_block(rows, has_header=True))
+                        continue
+                    if not seg_text.strip():
+                        continue
+                    bullets = _parse_bullets(seg_text, keep_links=is_summary)
+                    if bullets:
+                        for b in bullets:
+                            if isinstance(b, list):  # rich_text with links
+                                blocks.append({
+                                    "object": "block",
+                                    "type": "bulleted_list_item",
+                                    "bulleted_list_item": {"rich_text": b},
+                                })
+                            else:
+                                blocks.append(_bullet_block(b))
+                    else:
+                        blocks.extend(_paragraph_blocks(seg_text))
 
             blocks.append(_divider_block())
     else:
@@ -328,6 +338,61 @@ def _build_blocks(analysis: dict) -> list[dict]:
             blocks.append(_source_item_bullet(title, url))
 
     return blocks
+
+
+def _parse_md_table_rows(table_text: str) -> list[list[str]]:
+    """
+    마크다운 테이블 텍스트 → 행/열 리스트.
+    구분선(|---|---|)은 제외하고 헤더+데이터 행만 반환.
+    """
+    rows: list[list[str]] = []
+    for line in table_text.split("\n"):
+        stripped = line.strip()
+        if not (stripped.startswith("|") and stripped.endswith("|")):
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        # 구분선 스킵 (|---|---|)
+        if cells and all(re.match(r"^:?-+:?$", c) for c in cells if c.strip()):
+            continue
+        if cells:
+            rows.append(cells)
+    return rows
+
+
+def _split_content_tables(content: str) -> list[tuple[str, bool]]:
+    """
+    섹션 내용을 테이블 블록과 일반 텍스트 블록으로 분리.
+    반환: [(텍스트, is_table), ...]
+    """
+    segments: list[tuple[str, bool]] = []
+    current: list[str] = []
+    in_table = False
+
+    for line in content.split("\n"):
+        stripped = line.strip()
+        is_table_line = (
+            stripped.startswith("|") and stripped.endswith("|") and len(stripped) > 2
+        )
+
+        if is_table_line and not in_table:
+            if current:
+                segments.append(("\n".join(current), False))
+                current = []
+            in_table = True
+            current = [line]
+        elif is_table_line and in_table:
+            current.append(line)
+        elif not is_table_line and in_table:
+            segments.append(("\n".join(current), True))
+            current = [line]
+            in_table = False
+        else:
+            current.append(line)
+
+    if current:
+        segments.append(("\n".join(current), in_table))
+
+    return segments
 
 
 # 불릿 접두사 패턴: - • ▸ * ① ② ③ ... ⑩  또는  1. 2. 3.  또는  1) 2) 3)
