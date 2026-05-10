@@ -1604,6 +1604,13 @@ def main() -> None:
                 # 오류가 있으면 활동 로그 탭에서 확인 안내
                 st.session_state["notion_load_error"] = _auto_err
 
+    # ── 관리자 인증 상태 ──────────────────────────────────────────────────────
+    _admin_pw = (
+        st.secrets.get("ADMIN_PASSWORD", None)
+        or os.environ.get("ADMIN_PASSWORD", "inchang")
+    )
+    _authed = st.session_state.get("admin_authed", False)
+
     # ── 메인 버튼 행: 실행 + 과거 데이터 불러오기 ────────────────────────────
     col_btn, col_hist, col_kw = st.columns([2, 2, 4])
 
@@ -1612,7 +1619,42 @@ def main() -> None:
             "▶  실시간 전략 분석 실행",
             type="primary",
             use_container_width=True,
-            help="뉴스 수집 → Groq 필터 → Gemini 조사 → LLM 합성 전체 파이프라인 실행",
+            disabled=not _authed,
+            help=(
+                "뉴스 수집 → Groq 필터 → Gemini 조사 → LLM 합성 전체 파이프라인 실행"
+                if _authed else "인증 후 사용 가능 — 아래 비밀번호를 입력하세요"
+            ),
+        )
+        # 인증 상태 표시 / 비밀번호 입력
+        if _authed:
+            st.markdown(
+                "<p style='color:#22C55E;font-size:11px;margin:2px 0 0;"
+                "text-align:center'>🔓 Authenticated</p>",
+                unsafe_allow_html=True,
+            )
+        else:
+            _pw = st.text_input(
+                "pw",
+                type="password",
+                placeholder="🔑 Enter password",
+                label_visibility="collapsed",
+                key="admin_pw_input",
+            )
+            if _pw:
+                if _pw == _admin_pw:
+                    st.session_state["admin_authed"] = True
+                    st.rerun()
+                else:
+                    st.markdown(
+                        "<p style='color:#EF4444;font-size:11px;margin:2px 0 0;"
+                        "text-align:center'>❌ Incorrect password</p>",
+                        unsafe_allow_html=True,
+                    )
+        st.markdown(
+            "<p style='color:#475569;font-size:10.5px;margin:4px 0 0;"
+            "text-align:center;font-style:italic'>"
+            "Only inchang can perform this</p>",
+            unsafe_allow_html=True,
         )
 
     with col_hist:
@@ -1620,6 +1662,12 @@ def main() -> None:
             "📅 과거 데이터 불러오기",
             use_container_width=True,
             help="Notion에 저장된 특정 날짜의 분석 결과를 불러옵니다",
+        )
+        st.markdown(
+            "<p style='color:#475569;font-size:10.5px;margin:4px 0 0;"
+            "text-align:center;font-style:italic'>"
+            "Anyone can perform this</p>",
+            unsafe_allow_html=True,
         )
 
     with col_kw:
