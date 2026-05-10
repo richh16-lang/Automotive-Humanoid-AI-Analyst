@@ -335,6 +335,13 @@ def _md_to_html(text: str) -> str:
         if not rows:
             return ""
 
+        # 헤더만 있고 데이터 행이 없는 경우 fallback 행 추가
+        has_data = any(not is_hdr for _, is_hdr in rows)
+        if not has_data:
+            hdr_col_count = len(rows[0][0]) if rows else 1
+            fallback_cells = ["(데이터 없음)"] + ["—"] * (hdr_col_count - 1)
+            rows.append((fallback_cells, False))
+
         html = (
             "<div style='overflow-x:auto;margin:14px 0'>"
             "<table style='width:100%;border-collapse:collapse;"
