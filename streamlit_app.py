@@ -442,7 +442,12 @@ def _md_to_html(text: str) -> str:
             )
         else:  # "text"
             lines_html.append(
-                f"<p style='margin:8px 0;line-height:1.8;color:#CBD5E1'>{combined}</p>"
+                f"<div style='padding:8px 16px;margin:5px 0;border-radius:6px;"
+                f"border-left:2px solid rgba(100,116,139,0.35);"
+                f"background:rgba(15,23,42,0.4);font-size:13px;"
+                f"color:#94A3B8;line-height:1.8'>"
+                f"<span style='color:#475569;margin-right:8px;font-size:12px'>▸</span>"
+                f"{combined}</div>"
             )
         _item_lines = []
         _item_type  = ""
@@ -1709,17 +1714,18 @@ def main() -> None:
     st.markdown(
         f"<div style='background:linear-gradient(135deg,#0F172A 0%,#162032 100%);"
         f"border:1px solid #334155;border-radius:14px;"
-        f"padding:26px 30px 22px;margin-bottom:14px;"
+        f"padding:28px 30px 22px;margin-bottom:14px;"
+        f"text-align:center;"
         f"box-shadow:0 4px 16px rgba(0,0,0,0.4)'>"
         f"<h1 style='"
-        f"background:linear-gradient(90deg,#FFFFFF 0%,#38BDF8 65%,#00B4D8 100%);"
+        f"background:linear-gradient(90deg,#FFE44D 0%,#FFB700 55%,#FF8C00 100%);"
         f"-webkit-background-clip:text;-webkit-text-fill-color:transparent;"
         f"background-clip:text;"
-        f"font-size:1.7rem;font-weight:800;margin:0 0 4px;"
-        f"letter-spacing:-0.3px;line-height:1.25'>"
+        f"font-size:2.3rem;font-weight:800;margin:0 0 4px;"
+        f"letter-spacing:-0.3px;line-height:1.25;text-align:center'>"
         f"🔬 Inchang's Agent — Edge AI (Auto &amp; Humanoid) Intelligence"
         f"</h1>"
-        f"<p style='color:#64748B;font-size:13px;margin:4px 0 0;font-weight:500'>"
+        f"<p style='color:#64748B;font-size:13px;margin:4px 0 0;font-weight:500;text-align:center'>"
         f"AI / Semiconductor Daily News &nbsp;·&nbsp; "
         f"Automotive / Humanoid / Storage Intelligence"
         f"</p>"
@@ -1980,8 +1986,7 @@ def main() -> None:
 
             st.markdown("---")
 
-            # ── 메타 배너 + 다운로드 + 이메일 ─────────────────────────────────
-            render_meta_banner(analysis)
+            # ── 다운로드 + 이메일 ─────────────────────────────────────────────
             col_dl, col_mail = st.columns([3, 1])
             with col_dl:
                 render_download_buttons(analysis)
