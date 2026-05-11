@@ -432,6 +432,12 @@ _BULLET_PAT = re.compile(
     r")\s*"
 )
 
+# 이모지 불릿 패턴 (SYSTEM_PROMPT 출력 포맷: 이모지만으로 시작하는 줄)
+_EMOJI_BULLET_PAT = re.compile(
+    r"^(?:🚀|⚠️|🏢|🛠️|📈|📉|💡|🌍|⚙️|🔄|✅|❌|🔥|💰|🤖|🔋|📡|⚡"
+    r"|🏭|🌐|📌|🎯|⭐|🔍|💼|📊|📋|🏆|🛡️|💻|🔗|📝|🔎)"
+)
+
 
 def _parse_bullets(content: str, keep_links: bool = False) -> list:
     """
@@ -453,14 +459,19 @@ def _parse_bullets(content: str, keep_links: bool = False) -> list:
         m = _BULLET_PAT.match(line)
         if m:
             cleaned = line[m.end():].strip()
-            cleaned = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", cleaned)
-            if not cleaned:
-                continue
-            if keep_links:
-                result.append(_rich_text_with_links(cleaned))
-            else:
-                cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
-                result.append(cleaned[:1900])
+        elif _EMOJI_BULLET_PAT.match(line):
+            # 이모지만으로 시작하는 불릿 (- 없는 경우, SYSTEM_PROMPT 출력 포맷)
+            cleaned = line.strip()
+        else:
+            continue
+        cleaned = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", cleaned)
+        if not cleaned:
+            continue
+        if keep_links:
+            result.append(_rich_text_with_links(cleaned))
+        else:
+            cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
+            result.append(cleaned[:1900])
     return result
 
 
@@ -815,9 +826,10 @@ def _extract_page_text(client: Client, page_id: str) -> str:
                 plain    = r.get("plain_text", "")
                 link_obj = (r.get("text") or {}).get("link") or {}
                 url_val  = link_obj.get("url", "") if isinstance(link_obj, dict) else ""
-                # "클릭" 같은 플레이스홀더는 실제 URL로 교체
+                # "클릭" 같은 플레이스홀더는 [출처: URL] 포맷으로 복원
+                # → render_strategy_dashboard의 url_m 정규식이 올바르게 매칭되도록
                 if url_val and plain in _LINK_PLACEHOLDERS:
-                    parts.append(url_val)
+                    parts.append(f"[출처: {url_val}]")
                 else:
                     parts.append(plain)
             text = "".join(parts)

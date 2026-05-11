@@ -476,7 +476,7 @@ def _md_to_html(text: str) -> str:
                     )
                 else:
                     lines_html.append(
-                        f"<div style='display:flex;gap:8px;align-items:flex-start;"
+                        f"<div style='display:block;"
                         f"padding:9px 16px;margin:6px 0;border-radius:6px;"
                         f"border-left:2px solid rgba(56,189,248,0.4);"
                         f"background:rgba(30,41,59,0.5);font-size:13px;"
@@ -510,7 +510,7 @@ def _md_to_html(text: str) -> str:
                     )
                 elif _emoji:
                     lines_html.append(
-                        f"<div style='display:flex;gap:8px;align-items:flex-start;"
+                        f"<div style='display:block;"
                         f"padding:9px 16px;margin:6px 0;border-radius:6px;"
                         f"border-left:2px solid rgba(56,189,248,0.4);"
                         f"background:rgba(30,41,59,0.5);font-size:13px;"
