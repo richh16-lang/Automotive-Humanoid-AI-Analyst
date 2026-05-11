@@ -359,7 +359,8 @@ def _md_to_html(text: str) -> str:
     # ── 줄 단위 처리 (테이블 / 제목 / 불릿 / 단락) ──────────────────────────
     lines_html:    list[str] = []
     pending_table: list[str] = []
-    in_ul = False
+    _item_lines: list[str] = []          # 현재 항목의 누적 줄
+    _item_type:  str        = ""         # "company" | "bullet" | "text"
 
     def _render_md_table(tlines: list[str]) -> str:
         """마크다운 테이블 라인 목록 → HTML <table> (다크 테마)."""
@@ -419,13 +420,39 @@ def _md_to_html(text: str) -> str:
                 lines_html.append(rendered)
             pending_table = []
 
+    def _flush_item() -> None:
+        """누적된 _item_lines 를 하나의 스타일 블록으로 렌더링 후 초기화."""
+        nonlocal _item_lines, _item_type
+        if not _item_lines:
+            return
+        combined = " ".join(_item_lines)
+        if _item_type == "company":
+            lines_html.append(
+                f"<div style='background:linear-gradient(135deg,#1E3A5F 0%,#1E293B 100%);"
+                f"border:1px solid rgba(96,165,250,0.3);border-left:3px solid #60A5FA;"
+                f"border-radius:8px;padding:10px 16px;margin:9px 0;"
+                f"font-size:13px;color:#BAE6FD;line-height:1.8'>{combined}</div>"
+            )
+        elif _item_type == "bullet":
+            lines_html.append(
+                f"<div style='padding:9px 16px;margin:6px 0;border-radius:6px;"
+                f"border-left:2px solid rgba(56,189,248,0.4);"
+                f"background:rgba(30,41,59,0.5);font-size:13px;"
+                f"color:#CBD5E1;line-height:1.8'>{combined}</div>"
+            )
+        else:  # "text"
+            lines_html.append(
+                f"<p style='margin:8px 0;line-height:1.8;color:#CBD5E1'>{combined}</p>"
+            )
+        _item_lines = []
+        _item_type  = ""
+
     for line in text.split("\n"):
         stripped = line.strip()
 
         # ── 마크다운 테이블 행 감지 (|...|) ──────────────────────────────────
         if stripped.startswith("|") and stripped.endswith("|") and len(stripped) > 2:
-            if in_ul:
-                lines_html.append("</ul>"); in_ul = False
+            _flush_item()
             pending_table.append(line)
             continue
         else:
@@ -433,8 +460,7 @@ def _md_to_html(text: str) -> str:
 
         # ── 마크다운 헤딩 (###, ##, #) ────────────────────────────────────────
         if stripped.startswith("### "):
-            if in_ul:
-                lines_html.append("</ul>"); in_ul = False
+            _flush_item()
             content = stripped[4:]
             lines_html.append(
                 f"<h4 style='color:#7DD3FC;font-size:13px;font-weight:700;"
@@ -442,8 +468,7 @@ def _md_to_html(text: str) -> str:
                 f"border-bottom:1px solid rgba(56,189,248,0.15)'>{content}</h4>"
             )
         elif stripped.startswith("## "):
-            if in_ul:
-                lines_html.append("</ul>"); in_ul = False
+            _flush_item()
             content = stripped[3:]
             lines_html.append(
                 f"<h3 style='color:#BAE6FD;font-size:14px;font-weight:700;"
@@ -451,79 +476,41 @@ def _md_to_html(text: str) -> str:
                 f"border-bottom:1px solid rgba(56,189,248,0.25)'>{content}</h3>"
             )
         elif stripped.startswith("# "):
-            if in_ul:
-                lines_html.append("</ul>"); in_ul = False
+            _flush_item()
             content = stripped[2:]
             lines_html.append(
                 f"<h2 style='color:#E2E8F0;font-size:15px;font-weight:800;"
                 f"margin:18px 0 6px;padding-bottom:4px;"
                 f"border-bottom:1px solid rgba(56,189,248,0.35)'>{content}</h2>"
             )
-        # ── 불릿 항목 ─────────────────────────────────────────────────────────
+        # ── 불릿 항목 (- / • / ▸ / *) ─────────────────────────────────────
         elif stripped.startswith(("- ", "• ", "▸ ", "* ")):
+            _flush_item()
             item_content = stripped[2:]
             _emoji = _leading_emoji(item_content)
-            if _emoji:
-                # 이모지 접두사 항목 → 스타일 div (불릿 대신)
-                if in_ul:
-                    lines_html.append("</ul>"); in_ul = False
-                if _emoji == '🏢':
-                    lines_html.append(
-                        f"<div style='background:linear-gradient(135deg,#1E3A5F 0%,#1E293B 100%);"
-                        f"border:1px solid rgba(96,165,250,0.3);border-left:3px solid #60A5FA;"
-                        f"border-radius:8px;padding:10px 16px;margin:9px 0;"
-                        f"font-size:13px;color:#BAE6FD'>{item_content}</div>"
-                    )
-                else:
-                    lines_html.append(
-                        f"<div style='display:block;"
-                        f"padding:9px 16px;margin:6px 0;border-radius:6px;"
-                        f"border-left:2px solid rgba(56,189,248,0.4);"
-                        f"background:rgba(30,41,59,0.5);font-size:13px;"
-                        f"color:#CBD5E1;line-height:1.8'>{item_content}</div>"
-                    )
-            else:
-                if not in_ul:
-                    lines_html.append(
-                        "<ul style='margin:10px 0;padding-left:0;list-style:none;'>"
-                    )
-                    in_ul = True
-                lines_html.append(
-                    f"<li style='margin:9px 0;padding:8px 16px;"
-                    f"border-left:2px solid rgba(56,189,248,0.45);display:flex;gap:8px;"
-                    f"border-radius:0 6px 6px 0;background:rgba(30,41,59,0.3)'>"
-                    f"<span style='color:#38BDF8;flex-shrink:0;font-size:13px'>•</span>"
-                    f"<span style='color:#CBD5E1;line-height:1.8'>{item_content}</span></li>"
-                )
-        # ── 일반 단락 ─────────────────────────────────────────────────────────
+            _item_type  = "company" if _emoji == "🏢" else "bullet"
+            _item_lines = [item_content]
+        # ── 빈 줄 → 현재 항목 마무리 ─────────────────────────────────────────
+        elif not stripped:
+            _flush_item()
+        # ── 일반 텍스트 / 이모지 단락 ────────────────────────────────────────
         else:
-            if in_ul:
-                lines_html.append("</ul>"); in_ul = False
-            if stripped:
-                _emoji = _leading_emoji(stripped)
-                if _emoji == '🏢':
-                    lines_html.append(
-                        f"<div style='background:linear-gradient(135deg,#1E3A5F 0%,#1E293B 100%);"
-                        f"border:1px solid rgba(96,165,250,0.3);border-left:3px solid #60A5FA;"
-                        f"border-radius:8px;padding:10px 16px;margin:9px 0;"
-                        f"font-size:13px;color:#BAE6FD'>{stripped}</div>"
-                    )
-                elif _emoji:
-                    lines_html.append(
-                        f"<div style='display:block;"
-                        f"padding:9px 16px;margin:6px 0;border-radius:6px;"
-                        f"border-left:2px solid rgba(56,189,248,0.4);"
-                        f"background:rgba(30,41,59,0.5);font-size:13px;"
-                        f"color:#CBD5E1;line-height:1.8'>{stripped}</div>"
-                    )
-                else:
-                    lines_html.append(
-                        f"<p style='margin:8px 0;line-height:1.8;color:#CBD5E1'>{stripped}</p>"
-                    )
+            _emoji = _leading_emoji(stripped)
+            if _emoji:
+                # 이모지 접두사가 있으면 항상 새 항목 시작
+                _flush_item()
+                _item_type  = "company" if _emoji == "🏢" else "bullet"
+                _item_lines = [stripped]
+            elif _item_type:
+                # 현재 항목 진행 중이고 평문 줄 → 같은 단위로 이어붙임
+                _item_lines.append(stripped)
+            else:
+                # 새 텍스트 단락 시작
+                _item_type  = "text"
+                _item_lines = [stripped]
 
+    _flush_item()
     _flush_table()
-    if in_ul:
-        lines_html.append("</ul>")
 
     return "\n".join(lines_html)
 
