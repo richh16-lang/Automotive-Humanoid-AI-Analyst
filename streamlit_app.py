@@ -616,6 +616,33 @@ def _extract_ratio_chart_data(content: str):
 
     lines = content.split("\n")
 
+    _SEP_PAT      = re.compile(r'^\|[\s\-:|]+\|')          # |---|---| 구분선
+    _ONDEV_TBL    = re.compile(r'On.?device|Cloud', re.IGNORECASE)
+
+    def _drop_orphaned_table(remove: set[int]) -> set[int]:
+        """
+        차트 데이터 행이 제거된 후 남는 On-device/Cloud 관련
+        마크다운 테이블 헤더 행과 인접 구분선(|---|)을 remove set에 추가.
+        같은 테이블 블록에 속한 연속 | 행 전체를 탐지.
+        """
+        result = set(remove)
+        n = len(lines)
+        i = 0
+        while i < n:
+            ln = lines[i].strip()
+            # On-device/Cloud 키워드를 포함한 | 행 → 테이블 헤더 시작
+            if ln.startswith("|") and _ONDEV_TBL.search(ln):
+                # 이 헤더 행을 포함해 연속된 | 블록(헤더 + 구분선 + 이미 제거된 데이터행) 전체 마킹
+                j = i
+                while j < n and (lines[j].strip().startswith("|") or j in result):
+                    if lines[j].strip().startswith("|"):
+                        result.add(j)
+                    j += 1
+                i = j
+            else:
+                i += 1
+        return result
+
     # ── Format A: 연도와 두 지표값이 같은 줄 ─────────────────────────────────
     # "2024년: On-device 30% : Cloud 70%" 또는 "2026년 On-device 45% Cloud 55%"
     _FMT_A = re.compile(
@@ -641,7 +668,7 @@ def _extract_ratio_chart_data(content: str):
             },
             index=[r[0] for r in fmt_a_rows],
         )
-        remove = set(fmt_a_idxs)
+        remove = _drop_orphaned_table(set(fmt_a_idxs))
         clean  = "\n".join(ln for i, ln in enumerate(lines) if i not in remove)
         return clean, df
 
@@ -676,9 +703,10 @@ def _extract_ratio_chart_data(content: str):
         {"On-device (%)": ondev_vals[:n], "Cloud (%)": cloud_vals[:n]},
         index=years[:n],
     )
-    remove = {ondev_idx, cloud_idx}
+    base_remove = {ondev_idx, cloud_idx}
     if year_idx != -1:
-        remove.add(year_idx)
+        base_remove.add(year_idx)
+    remove = _drop_orphaned_table(base_remove)
     clean = "\n".join(ln for i, ln in enumerate(lines) if i not in remove)
     return clean, df
 
