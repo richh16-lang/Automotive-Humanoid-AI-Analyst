@@ -965,6 +965,8 @@ _SECTION_HEADING_VARIANTS: dict[str, list[str]] = {
     "Why Now":          ["Why Now",          "Why Now?",
                          "Why Now? — 전략적 시급성",
                          "10. Why Now? — 전략적 시급성", "10. Why Now"],
+    # 섹션 파싱 종료 마커 — 분석 섹션 카드로 렌더링하지 않음
+    "참조 URL":         ["참조 URL", "📚 참조 URL", "참고 URL", "참조"],
 }
 
 # 변형 → canonical 역매핑 (빠른 조회용)
@@ -1032,6 +1034,11 @@ def _parse_raw_to_sections(raw_text: str) -> dict:
         canonical = _match_heading(stripped)
 
         if canonical:
+            if canonical == "참조 URL":
+                # 출처 목록 섹션 도달 → 분석 섹션 파싱 종료 (렌더링 대상 아님)
+                if current_title and current_lines:
+                    sections[current_title] = "\n".join(current_lines).strip()
+                break
             if current_title and current_lines:
                 sections[current_title] = "\n".join(current_lines).strip()
             current_title = canonical
