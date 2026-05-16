@@ -495,6 +495,18 @@ def _md_to_html(text: str) -> str:
             _emoji = _leading_emoji(item_content)
             _item_type  = "company" if _emoji == "🏢" else "bullet"
             _item_lines = [item_content]
+        # ── [계산 근거: ...] 블록 — 추론 근거 별도 스타일 ─────────────────────
+        elif stripped.startswith("[계산 근거:") or stripped.startswith("[계산근거:"):
+            _flush_item()
+            lines_html.append(
+                f"<div style='margin:4px 0 10px 16px;padding:8px 14px;"
+                f"border-left:3px solid rgba(251,191,36,0.5);"
+                f"background:rgba(251,191,36,0.06);border-radius:0 6px 6px 0;"
+                f"font-size:11.5px;color:#92400E;line-height:1.7;"
+                f"font-family:\"Pretendard\",monospace'>"
+                f"<span style='color:#D97706;font-weight:700;margin-right:4px'>📐</span>"
+                f"{stripped}</div>"
+            )
         # ── 빈 줄 → 현재 항목 마무리 ─────────────────────────────────────────
         elif not stripped:
             _flush_item()

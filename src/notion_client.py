@@ -1215,8 +1215,29 @@ def fetch_daily_from_notion(date_str: str) -> dict | None:
         except Exception as e:
             logger.warning("3차 스캔 실패: %s", e)
 
+    # ── 4차: 최근 3일 페이지 자동 선택 (날짜 불일치 대비 안전망) ──────────────
     if not pages:
-        logger.info("Notion: %s 날짜 분석 없음 (3단계 모두 실패)", date_str)
+        try:
+            all_recent = _notion_query(
+                db_id,
+                sorts=[{"timestamp": "created_time", "direction": "descending"}],
+                page_size=5,
+            )
+            if all_recent:
+                pages = [all_recent[0]]
+                # 실제 저장된 날짜를 title에서 추출해 로그에 남김
+                props_r   = pages[0].get("properties", {})
+                title_r   = props_r.get(title_prop, {}).get("title", [])
+                title_txt = "".join(r.get("plain_text", "") for r in title_r)
+                logger.warning(
+                    "4차 폴백: %s 날짜 미발견 → 최근 페이지 로드: '%s'",
+                    date_str, title_txt[:60],
+                )
+        except Exception as e:
+            logger.warning("4차 폴백 실패: %s", e)
+
+    if not pages:
+        logger.info("Notion: %s 날짜 분석 없음 (4단계 모두 실패)", date_str)
         return None
 
     # ── 첫 번째 페이지 파싱 ───────────────────────────────────────────────────

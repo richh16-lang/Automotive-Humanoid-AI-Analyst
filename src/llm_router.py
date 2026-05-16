@@ -22,7 +22,7 @@ def _call_claude(system: str, user: str) -> str:
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     model  = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
     resp   = client.messages.create(
-        model=model, max_tokens=8192,
+        model=model, max_tokens=16000,
         system=[{"type": "text", "text": system,
                  "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": user}],
@@ -40,7 +40,7 @@ def _call_gemini(system: str, user: str) -> str:
     model = genai.GenerativeModel(model_name=model_name, system_instruction=system)
     resp  = model.generate_content(
         user,
-        generation_config=genai.GenerationConfig(max_output_tokens=8192),
+        generation_config=genai.GenerationConfig(max_output_tokens=16000),
     )
     logger.info("[Gemini] 모델: %s", model_name)
     return resp.text
@@ -51,7 +51,7 @@ def _call_gpt(system: str, user: str) -> str:
     client     = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     model_name = os.environ.get("OPENAI_MODEL", "gpt-4o")
     resp       = client.chat.completions.create(
-        model=model_name, max_tokens=8192,
+        model=model_name, max_tokens=16000,
         messages=[{"role": "system", "content": system},
                   {"role": "user",   "content": user}],
     )
@@ -84,7 +84,7 @@ def _call_deepseek(system: str, user: str) -> str:
     )
     model_name = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
     resp       = client.chat.completions.create(
-        model=model_name, max_tokens=8192,
+        model=model_name, max_tokens=16000,
         messages=[{"role": "system", "content": system},
                   {"role": "user",   "content": user}],
     )
@@ -100,7 +100,7 @@ def _call_mistral(system: str, user: str) -> str:
     model_name = os.environ.get("MISTRAL_MODEL", "mistral-large-latest")
     resp       = client.chat.complete(
         model=model_name,
-        max_tokens=8192,
+        max_tokens=16000,
         messages=[{"role": "system", "content": system},
                   {"role": "user",   "content": user}],
     )
