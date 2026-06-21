@@ -83,6 +83,22 @@ def run_daily() -> int:
         logger.warning("Gemini 조사 실패 (원본 기사 사용): %s", e)
         research_meta = {"used_gemini": False}
 
+    # ── 3.5. Qdrant 기억 조회 ────────────────────────────────
+    memory_context = ""
+    try:
+        from src.vector_store import build_memory_context
+        articles_summary = " ".join(
+            f"{a.title} {' '.join(a.matched_keywords)}"
+            for a in articles[:10]
+        )
+        memory_context = build_memory_context(articles_summary, date_str)
+        if memory_context:
+            logger.info("Qdrant 기억 조회 완료: %d자", len(memory_context))
+        else:
+            logger.info("Qdrant 기억 없음 (첫 실행 또는 미설정)")
+    except Exception as e:
+        logger.warning("Qdrant 기억 조회 실패 (계속 진행): %s", e)
+
     # ── 4. 앙상블 합성 분석 ───────────────────────────────────
     try:
         analysis = analyze_articles(
@@ -90,6 +106,7 @@ def run_daily() -> int:
             date_str=date_str,
             filter_meta=filter_meta,
             research_meta=research_meta,
+            memory_context=memory_context or None,
         )
         logger.info("분석 완료 | 모델: %s", analysis.get("model_attribution", "-"))
     except Exception as e:
@@ -119,6 +136,15 @@ def run_daily() -> int:
         logger.info("Notion 저장 완료: %s", notion_url)
     except Exception as e:
         logger.warning("Notion 저장 실패 (계속 진행): %s", e)
+
+    # ── 5e. Qdrant 인덱싱 ────────────────────────────────────
+    try:
+        from src.vector_store import index_daily_report
+        indexed = index_daily_report(analysis)
+        if indexed > 0:
+            logger.info("Qdrant 인덱싱 완료: %d개 섹션", indexed)
+    except Exception as e:
+        logger.warning("Qdrant 인덱싱 실패 (계속 진행): %s", e)
 
     # ── 5d. Gmail 발송 (Word + MD 첨부) ─────────────────────
     try:

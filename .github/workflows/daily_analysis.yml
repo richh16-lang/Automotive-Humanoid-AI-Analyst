@@ -58,6 +58,9 @@ jobs:
           GMAIL_ADDRESS:      ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENT_EMAILS:   ${{ secrets.RECIPIENT_EMAILS }}
+          # ── Qdrant Vector DB (Agent Memory) ──
+          QDRANT_URL:     ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
           # ── 출력 파일 저장 위치 (Word + Markdown) ──
           PPT_OUTPUT_DIR: "/tmp"
           MD_OUTPUT_DIR:  "/tmp"

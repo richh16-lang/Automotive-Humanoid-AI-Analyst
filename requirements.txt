@@ -22,6 +22,9 @@ matplotlib>=3.9.0           # 차트 PNG 생성 (Word 임베딩 + Notion QuickCh
 streamlit>=1.35.0             # 웹 대시보드
 pandas>=2.0.0                 # 바 차트 데이터프레임
 
+# ── Vector DB (Agent Memory) ─────────────────────────────────
+qdrant-client>=1.9.0
+
 # ── 유틸리티 ─────────────────────────────────────────────────
 python-dotenv>=1.0.1
 pyyaml>=6.0.2

@@ -338,10 +338,12 @@ def analyze_articles(
     status_fn=None,
     filter_meta: dict | None = None,
     research_meta: dict | None = None,
+    memory_context: str | None = None,
 ) -> dict:
     """
     앙상블 분석 파이프라인.
     Groq 필터링·Gemini 조사 메타데이터를 받아 AI 기여 모델을 표기합니다.
+    memory_context: Qdrant에서 검색한 과거 인사이트 (없으면 None).
     """
     if not articles:
         logger.warning("분석할 기사가 없습니다.")
@@ -367,10 +369,14 @@ def analyze_articles(
         + ("사실 조사: Gemini" if research_meta.get("used_gemini") else "")
     ).rstrip(" |")
 
-    user_content = ANALYSIS_TEMPLATE.format(
+    formatted_template = ANALYSIS_TEMPLATE.format(
         count=len(synthesis_articles),
         articles_text=articles_text,
         model_attribution=attribution_placeholder,
+    )
+    user_content = (
+        memory_context + "\n" + formatted_template
+        if memory_context else formatted_template
     )
 
     logger.info("LLM 앙상블 분석 시작 (기사: %d건 / 전체 수집: %d건)",
