@@ -155,7 +155,8 @@ def search_memory(query: str, top_k: int = 5, exclude_date: str | None = None) -
             for r in results.points
         ]
     except Exception as e:
-        logger.warning("[Qdrant] 검색 실패: %s", e)
+        import traceback
+        logger.warning("[Qdrant] 검색 실패: %s\n%s", e, traceback.format_exc())
         return []
 
 
