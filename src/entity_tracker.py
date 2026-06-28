@@ -147,13 +147,15 @@ def store_counts(counts: dict, date_str: str) -> None:
     logger.info("[EntityTracker] %s 카운트 저장 (%d개 엔티티)", date_str, len(counts))
 
 
-def build_spike_report(articles: list, date_str: str) -> str:
+def run_entity_tracking(articles: list, date_str: str) -> tuple[str, list[str]]:
     """
-    급증 감지 결과 텍스트 반환 (섹션 11에 주입).
-    Qdrant 미설정 또는 급증 없으면 빈 문자열 반환.
+    언급량 추적 전체 실행.
+    반환값: (spike_report_text, spike_entity_names)
+    - spike_report_text : 섹션 11에 주입할 텍스트
+    - spike_entity_names: Research Agent 우선 조사용 엔티티 목록
     """
     if not _has_qdrant():
-        return ""
+        return "", []
     try:
         _ensure_collection()
         counts = count_mentions(articles)
@@ -161,8 +163,9 @@ def build_spike_report(articles: list, date_str: str) -> str:
         store_counts(counts, date_str)
 
         if not spikes:
-            return ""
+            return "", []
 
+        spike_names = [s["entity"] for s in spikes]
         lines = ["### ⚠️ 언급량 급증 감지 (14일 평균 대비)"]
         for s in spikes:
             if s["type"] == "신규 등장":
@@ -171,8 +174,8 @@ def build_spike_report(articles: list, date_str: str) -> str:
                 lines.append(
                     f"- **{s['entity']}**: {s['today']}회 (평균 {s['avg']}회 대비 {s['ratio']}배) ⚠️"
                 )
-        return "\n".join(lines) + "\n"
+        return "\n".join(lines) + "\n", spike_names
 
     except Exception as e:
         logger.warning("[EntityTracker] 급증 감지 실패: %s", e)
-        return ""
+        return "", []

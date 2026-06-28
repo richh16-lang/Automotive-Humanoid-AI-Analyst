@@ -76,18 +76,19 @@ def run_daily() -> int:
         return 0
 
     # ── 2.5. 엔티티 언급량 추적 ─────────────────────────────────
-    spike_report = ""
+    spike_report, spike_entities = "", []
     try:
-        from src.entity_tracker import build_spike_report
-        spike_report = build_spike_report(articles, date_str)
+        from src.entity_tracker import run_entity_tracking
+        spike_report, spike_entities = run_entity_tracking(articles, date_str)
         if spike_report:
-            logger.info("언급량 급증 감지 완료")
+            logger.info("언급량 급증 감지: %s", ", ".join(spike_entities))
     except Exception as e:
         logger.warning("Entity Tracker 실패 (계속 진행): %s", e)
 
     # ── 3. Gemini 배경 조사 ───────────────────────────────────
     try:
-        articles, research_meta = research_articles(articles, max_articles=15)
+        articles, research_meta = research_articles(articles, max_articles=15,
+                                                    spike_entities=spike_entities)
         logger.info("Gemini 조사 완료: %d건", research_meta.get("researched_count", 0))
     except Exception as e:
         logger.warning("Gemini 조사 실패 (원본 기사 사용): %s", e)
