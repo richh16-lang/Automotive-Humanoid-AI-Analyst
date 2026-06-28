@@ -1,21 +1,19 @@
 """
 기존 Notion 데이터 일괄 인덱싱 스크립트 (1회 실행용).
-최근 N일치 Notion 보고서를 Qdrant에 일괄 적재합니다.
+Notion DB의 모든 Daily 보고서를 직접 나열하여 Qdrant에 적재합니다.
 
 실행 방법:
-  cd news-analyzer
-  python scripts/index_notion_history.py          # 기본 60일
-  python scripts/index_notion_history.py --days 90
+  cd C:\Users\User\news-analyzer
+  pip install qdrant-client
+  python scripts/index_notion_history.py
 """
-import argparse
 import logging
 import os
+import re
 import sys
 import time
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# 프로젝트 루트를 파이썬 경로에 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
@@ -27,45 +25,89 @@ logging.basicConfig(
 )
 logger = logging.getLogger("index_history")
 
-KST = timezone(timedelta(hours=9))
+_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+
+
+def _list_all_pages() -> list[tuple[str, str]]:
+    """
+    Notion DB의 모든 Daily 페이지를 나열.
+    반환값: [(date_str, page_id), ...]  — 날짜 오래된 순
+    """
+    import requests as _req
+
+    db_id  = os.environ["NOTION_DAILY_DB_ID"].strip()
+    token  = os.environ["NOTION_TOKEN"].strip()
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json",
+    }
+
+    pages  = []
+    cursor = None
+
+    while True:
+        body: dict = {"page_size": 100, "sorts": [{"timestamp": "created_time", "direction": "descending"}]}
+        if cursor:
+            body["start_cursor"] = cursor
+
+        resp = _req.post(
+            f"https://api.notion.com/v1/databases/{db_id}/query",
+            headers=headers, json=body, timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        for page in data.get("results", []):
+            page_id = page["id"]
+            # 제목에서 날짜 추출
+            title_parts = (
+                page.get("properties", {})
+                    .get("이름", {})
+                    .get("title", [])
+            )
+            title = "".join(t.get("plain_text", "") for t in title_parts)
+            m = _DATE_RE.search(title)
+            if m:
+                pages.append((m.group(1), page_id))
+
+        if not data.get("has_more"):
+            break
+        cursor = data.get("next_cursor")
+
+    # 오래된 날짜부터 인덱싱 (역순 정렬)
+    pages.sort(key=lambda x: x[0])
+    return pages
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Notion 보고서 → Qdrant 일괄 인덱싱")
-    parser.add_argument("--days", type=int, default=60, help="소급 일수 (기본 60일)")
-    parser.add_argument("--delay", type=float, default=1.0,
-                        help="Gemini 임베딩 Rate Limit 대응 대기(초, 기본 1.0)")
-    args = parser.parse_args()
-
-    # 환경변수 확인
-    if not os.environ.get("QDRANT_URL"):
-        logger.error("QDRANT_URL 환경변수가 없습니다. .env 파일을 확인하세요.")
-        sys.exit(1)
-    if not os.environ.get("GEMINI_API_KEY"):
-        logger.error("GEMINI_API_KEY 환경변수가 없습니다.")
-        sys.exit(1)
+    for var in ("QDRANT_URL", "QDRANT_API_KEY", "GEMINI_API_KEY",
+                "NOTION_TOKEN", "NOTION_DAILY_DB_ID"):
+        if not os.environ.get(var):
+            logger.error("%s 환경변수 없음. .env 파일 확인", var)
+            sys.exit(1)
 
     from src.notion_client import fetch_daily_from_notion
     from src.vector_store import index_daily_report
 
-    today    = datetime.now(KST).date()
-    success  = 0
-    skipped  = 0
-    failed   = 0
+    logger.info("=== Notion DB 페이지 목록 조회 중 ===")
+    pages = _list_all_pages()
+    logger.info("총 %d개 페이지 발견", len(pages))
 
-    logger.info("=== Notion → Qdrant 일괄 인덱싱 시작 (최근 %d일) ===", args.days)
+    success = skipped = failed = 0
 
-    for days_ago in range(0, args.days):
-        target_date = today - timedelta(days=days_ago)
-        date_str    = target_date.strftime("%Y-%m-%d")
-
+    for date_str, page_id in pages:
         try:
             analysis = fetch_daily_from_notion(date_str)
 
             if not analysis or not analysis.get("sections"):
-                logger.info("[%s] Notion 데이터 없음 — 건너뜀", date_str)
+                logger.info("[%s] 섹션 없음 — 건너뜀", date_str)
                 skipped += 1
                 continue
+
+            # date가 없으면 title에서 추출한 날짜로 보완
+            if not analysis.get("date"):
+                analysis["date"] = date_str
 
             indexed = index_daily_report(analysis)
             if indexed > 0:
@@ -75,15 +117,14 @@ def main() -> None:
                 logger.warning("[%s] 인덱싱된 섹션 0개", date_str)
                 skipped += 1
 
-            time.sleep(args.delay)  # Gemini 임베딩 Rate Limit 대응
+            time.sleep(1.5)  # Gemini Rate Limit 대응
 
         except Exception as e:
             logger.error("[%s] ❌ 실패: %s", date_str, e)
             failed += 1
-            time.sleep(args.delay * 2)
+            time.sleep(3)
 
-    logger.info("=== 완료: 성공 %d일 / 건너뜀 %d일 / 실패 %d일 ===",
-                success, skipped, failed)
+    logger.info("=== 완료: 성공 %d / 건너뜀 %d / 실패 %d ===", success, skipped, failed)
 
 
 if __name__ == "__main__":
