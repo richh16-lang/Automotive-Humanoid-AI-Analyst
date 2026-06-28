@@ -67,7 +67,8 @@ def _call_gemini_with_throttle(model, prompt: str, last_call_time: list,
         return None
 
 
-def research_articles(articles: list, max_articles: int = _MAX_ARTICLES_TO_RESEARCH) -> tuple[list, dict]:
+def research_articles(articles: list, max_articles: int = _MAX_ARTICLES_TO_RESEARCH,
+                      min_score: int = 6) -> tuple[list, dict]:
     """
     Gemini로 상위 기사들의 배경 조사 및 사실 검증.
 
@@ -104,8 +105,16 @@ def research_articles(articles: list, max_articles: int = _MAX_ARTICLES_TO_RESEA
         meta["model"] = model_name
         meta["used_gemini"] = True
 
-        # 조사 대상: 상위 max_articles건
-        to_research = articles[:max_articles]
+        # 조사 대상: 점수 기반 스마트 선택
+        # 8+ 반드시 조사 → 6~7 예산 내 추가 → 5 이하 건너뜀
+        must_research = [a for a in articles if getattr(a, "groq_score", 5) >= 8]
+        can_research  = [a for a in articles if 6 <= getattr(a, "groq_score", 5) <= 7]
+        to_research   = (must_research + can_research)[:max_articles]
+        skipped_low   = [a for a in articles if getattr(a, "groq_score", 5) < min_score
+                         and a not in to_research]
+        if skipped_low:
+            logger.info("[GeminiResearch] 낮은 점수 기사 %d건 조사 건너뜀 (score<%d)",
+                        len(skipped_low), min_score)
         last_call_time        = [time.time() - _GEMINI_INTERVAL_SEC]
         daily_quota_exhausted = [False]  # 일일 할당량 소진 플래그
 
