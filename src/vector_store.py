@@ -51,7 +51,7 @@ def _point_id(date_str: str, section_title: str) -> int:
 
 
 def _ensure_collection() -> None:
-    from qdrant_client.models import Distance, VectorParams
+    from qdrant_client.models import Distance, PayloadSchemaType, VectorParams
     client   = _get_client()
     existing = {c.name for c in client.get_collections().collections}
     if _COLLECTION not in existing:
@@ -60,6 +60,11 @@ def _ensure_collection() -> None:
             vectors_config=VectorParams(size=_VECTOR_DIM, distance=Distance.COSINE),
         )
         logger.info("[Qdrant] 컬렉션 생성: %s", _COLLECTION)
+    client.create_payload_index(
+        collection_name=_COLLECTION,
+        field_name="date",
+        field_schema=PayloadSchemaType.KEYWORD,
+    )
 
 
 # ──────────────────────────────────────────────────────────────────
