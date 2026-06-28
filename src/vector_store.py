@@ -138,9 +138,9 @@ def search_memory(query: str, top_k: int = 5, exclude_date: str | None = None) -
                 must_not=[FieldCondition(key="date", match=MatchValue(value=exclude_date))]
             )
 
-        results = client.search(
+        results = client.query_points(
             collection_name=_COLLECTION,
-            query_vector=vector,
+            query=vector,
             limit=top_k,
             query_filter=search_filter,
         )
@@ -152,7 +152,7 @@ def search_memory(query: str, top_k: int = 5, exclude_date: str | None = None) -
                 "content":       r.payload.get("content", ""),
                 "score":         round(r.score, 3),
             }
-            for r in results
+            for r in results.points
         ]
     except Exception as e:
         logger.warning("[Qdrant] 검색 실패: %s", e)
