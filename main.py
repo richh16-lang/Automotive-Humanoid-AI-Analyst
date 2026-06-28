@@ -158,6 +158,19 @@ def run_daily() -> int:
     except Exception as e:
         logger.warning("Qdrant 인덱싱 실패 (계속 진행): %s", e)
 
+    # ── 5f. 텔레그램 급증 알림 ───────────────────────────────
+    if spike_report:
+        try:
+            from src.telegram_alert import send_spike_alert
+            send_spike_alert(
+                spike_report=spike_report,
+                spike_entities=spike_entities,
+                date_str=date_str,
+                notion_url=analysis.get("notion_url", ""),
+            )
+        except Exception as e:
+            logger.warning("텔레그램 알림 실패 (계속 진행): %s", e)
+
     # ── 5d. Gmail 발송 (Word + MD 첨부) ─────────────────────
     try:
         send_daily_email(

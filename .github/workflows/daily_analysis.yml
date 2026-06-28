@@ -61,6 +61,9 @@ jobs:
           # ── Qdrant Vector DB (Agent Memory) ──
           QDRANT_URL:     ${{ secrets.QDRANT_URL }}
           QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          # ── 텔레그램 알림 ──
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
           # ── 출력 파일 저장 위치 (Word + Markdown) ──
           PPT_OUTPUT_DIR: "/tmp"
           MD_OUTPUT_DIR:  "/tmp"
