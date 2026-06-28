@@ -16,19 +16,37 @@ _DUMMY_VECTOR = [0.0, 0.0, 0.0, 0.0]  # 스토리지 전용 (벡터 검색 미�
 
 # 추적 대상 엔티티 — 키: 표시명, 값: 매칭 키워드 목록 (소문자)
 TRACKED_ENTITIES: dict[str, list[str]] = {
+    # ── 자동차 OEM ────────────────────────────────────────────
     "Tesla":           ["tesla", "fsd"],
     "BMW":             ["bmw"],
     "Toyota":          ["toyota", "lexus"],
-    "Waymo":           ["waymo"],
+    "Hyundai":         ["hyundai", "kia", "현대", "기아"],
+    "GM":              ["general motors", " gm "],
+    "Ford":            ["ford"],
+    "BYD":             ["byd"],
+    # ── 자동차 Tier1 ─────────────────────────────────────────
+    "Bosch":           ["bosch"],
+    "Continental":     ["continental"],
+    "Denso":           ["denso"],
+    # ── 자동차 SoC ───────────────────────────────────────────
+    "NVIDIA":          ["nvidia", "nvidia thor", "nvidia orin", "nvidia drive"],
+    "Qualcomm":        ["qualcomm", "snapdragon", "sa8295", "sa8775"],
     "Mobileye":        ["mobileye"],
-    "NVIDIA":          ["nvidia"],
-    "Qualcomm":        ["qualcomm", "snapdragon"],
+    "Waymo":           ["waymo"],
+    # ── 휴머노이드 업체 ────────────────────────────────────────
+    "Figure AI":       ["figure ai", "figure robot"],
+    "Boston Dynamics": ["boston dynamics", "atlas"],
+    "Agility Robotics":["agility robotics", "digit robot"],
+    "1X Technologies": ["1x technologies", "1x robotics"],
+    "Unitree":         ["unitree"],
+    "Apptronik":       ["apptronik"],
+    "Sanctuary AI":    ["sanctuary ai"],
+    "Physical Intelligence": ["physical intelligence", "pi zero"],
+    # ── 메모리·스토리지 ────────────────────────────────────────
     "Samsung":         ["samsung"],
     "SK하이닉스":      ["sk hynix", "hynix", "sk하이닉스"],
     "Micron":          ["micron"],
     "Kioxia":          ["kioxia"],
-    "Figure AI":       ["figure ai", "figure robot"],
-    "Boston Dynamics": ["boston dynamics"],
     "HBM":             ["hbm"],
     "CXL":             ["cxl"],
     "UFS":             ["ufs 4", "ufs 5", "ufs4", "ufs5"],
