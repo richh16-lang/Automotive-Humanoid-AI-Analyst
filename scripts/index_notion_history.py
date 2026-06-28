@@ -3,8 +3,8 @@
 Notion DB의 모든 Daily 보고서를 직접 나열하여 Qdrant에 적재합니다.
 
 실행 방법:
-  cd C:\Users\User\news-analyzer
-  pip install qdrant-client
+  cd news-analyzer
+  python -m pip install qdrant-client
   python scripts/index_notion_history.py
 """
 import logging
@@ -81,7 +81,7 @@ def _list_all_pages() -> list[tuple[str, str]]:
 
 
 def main() -> None:
-    for var in ("QDRANT_URL", "QDRANT_API_KEY", "GEMINI_API_KEY",
+    for var in ("QDRANT_URL", "QDRANT_API_KEY", "OPENAI_API_KEY",
                 "NOTION_TOKEN", "NOTION_DAILY_DB_ID"):
         if not os.environ.get(var):
             logger.error("%s 환경변수 없음. .env 파일 확인", var)

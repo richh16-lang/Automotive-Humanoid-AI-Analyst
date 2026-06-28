@@ -15,8 +15,8 @@ import os
 logger = logging.getLogger(__name__)
 
 _COLLECTION = "news_analyzer_memory"
-_VECTOR_DIM = 768   # Gemini text-embedding-004 고정 차원
-_EMBED_MODEL = "models/text-embedding-004"
+_VECTOR_DIM = 1536  # OpenAI text-embedding-3-small 고정 차원
+_EMBED_MODEL = "text-embedding-3-small"
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -35,14 +35,13 @@ def _get_client():
 
 
 def _embed(text: str, task: str = "RETRIEVAL_DOCUMENT") -> list[float]:
-    import google.generativeai as genai
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    result = genai.embed_content(
+    from openai import OpenAI
+    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    resp = client.embeddings.create(
         model=_EMBED_MODEL,
-        content=text[:8000],
-        task_type=task,
+        input=text[:8000],
     )
-    return result["embedding"]
+    return resp.data[0].embedding
 
 
 def _point_id(date_str: str, section_title: str) -> int:
