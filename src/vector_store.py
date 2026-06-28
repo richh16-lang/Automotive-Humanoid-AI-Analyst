@@ -15,8 +15,8 @@ import os
 logger = logging.getLogger(__name__)
 
 _COLLECTION = "news_analyzer_memory"
-_VECTOR_DIM = 1536  # OpenAI text-embedding-3-small 고정 차원
-_EMBED_MODEL = "text-embedding-3-small"
+_VECTOR_DIM = 1024  # Mistral mistral-embed 고정 차원
+_EMBED_MODEL = "mistral-embed"
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -35,11 +35,11 @@ def _get_client():
 
 
 def _embed(text: str, task: str = "RETRIEVAL_DOCUMENT") -> list[float]:
-    from openai import OpenAI
-    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    from mistralai import Mistral
+    client = Mistral(api_key=os.environ["MISTRAL_API_KEY"])
     resp = client.embeddings.create(
         model=_EMBED_MODEL,
-        input=text[:8000],
+        inputs=[text[:8000]],
     )
     return resp.data[0].embedding
 

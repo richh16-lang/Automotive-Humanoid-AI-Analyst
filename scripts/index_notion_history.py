@@ -81,7 +81,7 @@ def _list_all_pages() -> list[tuple[str, str]]:
 
 
 def main() -> None:
-    for var in ("QDRANT_URL", "QDRANT_API_KEY", "OPENAI_API_KEY",
+    for var in ("QDRANT_URL", "QDRANT_API_KEY", "MISTRAL_API_KEY",
                 "NOTION_TOKEN", "NOTION_DAILY_DB_ID"):
         if not os.environ.get(var):
             logger.error("%s 환경변수 없음. .env 파일 확인", var)
