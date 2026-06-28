@@ -340,6 +340,7 @@ def analyze_articles(
     filter_meta: dict | None = None,
     research_meta: dict | None = None,
     memory_context: str | None = None,
+    spike_report: str | None = None,
 ) -> dict:
     """
     앙상블 분석 파이프라인.
@@ -371,9 +372,12 @@ def analyze_articles(
     ).rstrip(" |")
 
     memory_section = ""
-    if memory_context:
-        memory_section = """\
-## 11. 과거 대비 변화 감지 🔍
+    if memory_context or spike_report:
+        memory_section = "## 11. 과거 대비 변화 감지 🔍\n"
+        if spike_report:
+            memory_section += spike_report + "\n"
+        if memory_context:
+            memory_section += """\
 위에 제공된 [📚 과거 관련 인사이트]를 바탕으로 분석하세요.
 - **트렌드 연속성**: 과거 보고서와 비교하여 지속되는 흐름 (기업·기술·시장)
 - **변화 감지**: 과거 대비 방향이 바뀐 신호 (포지션·전략·언급 빈도 변화)

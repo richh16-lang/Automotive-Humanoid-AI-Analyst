@@ -75,6 +75,16 @@ def run_daily() -> int:
         logger.warning("필터링 후 기사 없음. 종료.")
         return 0
 
+    # ── 2.5. 엔티티 언급량 추적 ─────────────────────────────────
+    spike_report = ""
+    try:
+        from src.entity_tracker import build_spike_report
+        spike_report = build_spike_report(articles, date_str)
+        if spike_report:
+            logger.info("언급량 급증 감지 완료")
+    except Exception as e:
+        logger.warning("Entity Tracker 실패 (계속 진행): %s", e)
+
     # ── 3. Gemini 배경 조사 ───────────────────────────────────
     try:
         articles, research_meta = research_articles(articles, max_articles=15)
@@ -107,6 +117,7 @@ def run_daily() -> int:
             filter_meta=filter_meta,
             research_meta=research_meta,
             memory_context=memory_context or None,
+            spike_report=spike_report or None,
         )
         logger.info("분석 완료 | 모델: %s", analysis.get("model_attribution", "-"))
     except Exception as e:
