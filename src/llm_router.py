@@ -223,7 +223,7 @@ def call_llm(
             _notify(f"✅ {name} 분석 완료")
             return result, name
         except Exception as e:
-            _notify(f"❌ {name} 실패: {str(e)[:80]} → 다음 LLM 시도")
+            _notify(f"❌ {name} 실패: {str(e)[:300]} → 다음 LLM 시도")
             last_error = e
 
     raise RuntimeError(f"모든 LLM 호출 실패. 마지막 오류: {last_error}")
