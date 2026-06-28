@@ -155,6 +155,7 @@ def build_spike_report(articles: list, date_str: str) -> str:
     if not _has_qdrant():
         return ""
     try:
+        _ensure_collection()
         counts = count_mentions(articles)
         spikes = detect_spikes(counts)
         store_counts(counts, date_str)
