@@ -50,6 +50,129 @@ def _setup_korean_font() -> None:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 휴머노이드 Chipset 채택 현황 차트
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _load_chipset_baseline() -> dict:
+    from pathlib import Path
+    import json as _json
+    p = Path(__file__).parent.parent / "data" / "humanoid_chipset_baseline.json"
+    if not p.exists():
+        return {}
+    return _json.loads(p.read_text(encoding="utf-8"))
+
+
+def humanoid_chipset_pie_bytes(status_filter: list | None = None) -> bytes:
+    """
+    휴머노이드 chipset 채택 현황 파이 차트 (matplotlib PNG bytes).
+    status_filter: None = 전체 / ["confirmed"] = 확정만
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+
+    _setup_korean_font()
+
+    data   = _load_chipset_baseline()
+    companies = data.get("companies", {})
+
+    # 벤더별 카운트
+    counts: dict[str, int] = {}
+    for info in companies.values():
+        if status_filter and info.get("status") not in status_filter:
+            continue
+        vendor = info.get("chip_vendor", "기타")
+        counts[vendor] = counts.get(vendor, 0) + 1
+
+    if not counts:
+        return b""
+
+    COLORS = {
+        "NVIDIA":   "#76b900",
+        "Qualcomm": "#3253DC",
+        "In-house": "#FF6B35",
+        "기타":     "#888888",
+    }
+
+    labels = list(counts.keys())
+    sizes  = list(counts.values())
+    colors = [COLORS.get(l, "#888888") for l in labels]
+    total  = sum(sizes)
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    wedges, texts, autotexts = ax.pie(
+        sizes,
+        labels=None,
+        autopct=lambda p: f"{p:.1f}%\n({int(round(p * total / 100))}개)",
+        colors=colors,
+        startangle=140,
+        pctdistance=0.75,
+        wedgeprops={"linewidth": 1.5, "edgecolor": "white"},
+    )
+    for at in autotexts:
+        at.set_fontsize(10)
+        at.set_color("white")
+        at.set_fontweight("bold")
+
+    legend = [mpatches.Patch(color=COLORS.get(l, "#888888"), label=f"{l}  {c}개")
+              for l, c in zip(labels, sizes)]
+    ax.legend(handles=legend, loc="lower center", bbox_to_anchor=(0.5, -0.12),
+              ncol=len(labels), fontsize=10, frameon=False)
+
+    title_suffix = "(확정)" if status_filter == ["confirmed"] else "(전체)"
+    ax.set_title(f"휴머노이드 Chipset 채택 현황 {title_suffix}\n기준: {data.get('_meta', {}).get('updated', '')}",
+                 fontsize=13, fontweight="bold", pad=15)
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight", dpi=150,
+                facecolor="#1a2744", edgecolor="none")
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
+
+def humanoid_chipset_pie_url(status_filter: list | None = None,
+                              w: int = 500, h: int = 400) -> str:
+    """
+    휴머노이드 chipset 채택 현황 파이 차트 QuickChart URL (Notion용).
+    """
+    data      = _load_chipset_baseline()
+    companies = data.get("companies", {})
+
+    counts: dict[str, int] = {}
+    for info in companies.values():
+        if status_filter and info.get("status") not in status_filter:
+            continue
+        vendor = info.get("chip_vendor", "기타")
+        counts[vendor] = counts.get(vendor, 0) + 1
+
+    if not counts:
+        return ""
+
+    COLORS = {"NVIDIA": "#76b900", "Qualcomm": "#3253DC",
+              "In-house": "#FF6B35", "기타": "#888888"}
+
+    labels  = list(counts.keys())
+    sizes   = list(counts.values())
+    updated = data.get("_meta", {}).get("updated", "")
+
+    chart = {
+        "type": "pie",
+        "data": {
+            "labels": [f"{l} ({v}개)" for l, v in zip(labels, sizes)],
+            "datasets": [{"data": sizes,
+                          "backgroundColor": [COLORS.get(l, "#888888") for l in labels]}],
+        },
+        "options": {
+            "title": {"display": True,
+                      "text": f"휴머노이드 Chipset 채택 현황 ({updated})",
+                      "fontColor": "#ffffff", "fontSize": 14},
+            "legend": {"labels": {"fontColor": "#ffffff", "fontSize": 12}},
+        },
+    }
+    return _qc_url(chart, w=w, h=h)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # QuickChart.io URL 생성 (Notion image 블록용)
 # ══════════════════════════════════════════════════════════════════════════════
 

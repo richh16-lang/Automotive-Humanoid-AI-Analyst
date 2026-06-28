@@ -197,6 +197,7 @@ def generate_word(analysis: dict, output_dir: str = "/tmp") -> str:
         make_keyword_chart_bytes,
         make_source_chart_bytes,
         make_workload_chart_bytes,
+        humanoid_chipset_pie_bytes,
     )
 
     # ── 메타 추출 ─────────────────────────────────────────────
@@ -323,6 +324,12 @@ def generate_word(analysis: dict, output_dir: str = "/tmp") -> str:
     if wl_bytes:
         _embed_image(doc, wl_bytes, width_in=4.5,
                      caption="[그림 3] 차량용 스토리지 Read/Write 비율 (ADAS 기준)")
+
+    # 휴머노이드 Chipset 채택 현황 파이 차트
+    chipset_bytes = humanoid_chipset_pie_bytes(status_filter=["confirmed"])
+    if chipset_bytes:
+        _embed_image(doc, chipset_bytes, width_in=5.0,
+                     caption="[그림 4] 휴머노이드 Chipset 채택 현황 (확정 기준)")
 
     doc.add_page_break()
 

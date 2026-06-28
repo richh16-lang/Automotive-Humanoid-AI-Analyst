@@ -1,0 +1,170 @@
+{
+  "_meta": {
+    "version": "v2_2026",
+    "updated": "2026-06-28",
+    "source": "humanoid_chipset_v2_2026.xlsx",
+    "note": "현세대 탑재 확정 기준. 차세대/검토 중은 next_gen 필드 참조."
+  },
+  "companies": {
+    "Boston Dynamics": {
+      "model": "Atlas Gen5·6",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Thor",
+      "prev_chip": "유압식 HD Atlas (칩 미공개)",
+      "status": "confirmed",
+      "partners": ["Hyundai", "Google DeepMind", "NVIDIA", "Toyota Research Institute"]
+    },
+    "Agility Robotics": {
+      "model": "Digit Gen5/Gen6",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Thor",
+      "prev_chip": "Jetson Orin",
+      "status": "confirmed",
+      "partners": ["Amazon Robotics", "Toyota Canada", "NVIDIA", "Schaeffler"]
+    },
+    "Figure AI": {
+      "model": "Figure 03",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Thor",
+      "prev_chip": "NVIDIA RTX GPU",
+      "status": "confirmed",
+      "next_gen_chip_vendor": "Qualcomm",
+      "next_gen_chip": "Dragonwing IQ10",
+      "next_gen_status": "co-design",
+      "partners": ["BMW Group", "NVIDIA", "Qualcomm"]
+    },
+    "Amazon Robotics": {
+      "model": "물류 AMR (차세대)",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Thor",
+      "prev_chip": "Jetson Xavier/Orin",
+      "status": "confirmed",
+      "partners": ["NVIDIA"]
+    },
+    "Galbot": {
+      "model": "G1 Premium",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Thor",
+      "prev_chip": "미확인",
+      "status": "confirmed",
+      "partners": ["NVIDIA"]
+    },
+    "Humanoid UK": {
+      "model": "HMND 01",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Thor",
+      "prev_chip": "미확인",
+      "status": "confirmed",
+      "partners": ["Schaeffler", "NVIDIA"]
+    },
+    "Meta": {
+      "model": "연구용 로봇 플랫폼",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Thor",
+      "prev_chip": "—",
+      "status": "confirmed",
+      "partners": ["NVIDIA"]
+    },
+    "Franka Robotics": {
+      "model": "연구·산업용 로봇 암",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Thor",
+      "prev_chip": "Jetson Orin",
+      "status": "confirmed",
+      "partners": ["NVIDIA"]
+    },
+    "Apptronik": {
+      "model": "Apollo",
+      "chip_vendor": "NVIDIA",
+      "chip": "NVIDIA RTX",
+      "prev_chip": "—",
+      "status": "confirmed",
+      "partners": ["NVIDIA", "NASA"]
+    },
+    "Unitree Robotics (G1 EDU)": {
+      "model": "G1 EDU / H1-2",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Orin NX 16GB",
+      "prev_chip": "CPU only",
+      "status": "confirmed",
+      "partners": ["NVIDIA"]
+    },
+    "NEURA Robotics": {
+      "model": "MAV / 4NE1 Gen1~3",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Thor",
+      "prev_chip": "Jetson Orin",
+      "status": "confirmed",
+      "next_gen_chip_vendor": "Qualcomm",
+      "next_gen_chip": "Dragonwing IQ10",
+      "next_gen_status": "reference design",
+      "partners": ["NVIDIA", "Qualcomm"]
+    },
+    "1X Technologies": {
+      "model": "NEO",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Thor",
+      "prev_chip": "—",
+      "status": "evaluating",
+      "partners": ["NVIDIA"]
+    },
+    "Physical Intelligence": {
+      "model": "로봇 AI 시스템",
+      "chip_vendor": "NVIDIA",
+      "chip": "Jetson Thor",
+      "prev_chip": "—",
+      "status": "evaluating",
+      "partners": ["NVIDIA"]
+    },
+    "VinMotion": {
+      "model": "Motion 2",
+      "chip_vendor": "Qualcomm",
+      "chip": "Dragonwing IQ9",
+      "prev_chip": "—",
+      "status": "confirmed",
+      "next_gen_chip": "Dragonwing IQ10",
+      "partners": ["Qualcomm"]
+    },
+    "Booster Robotics": {
+      "model": "K1 Geek",
+      "chip_vendor": "Qualcomm",
+      "chip": "Dragonwing IQ10",
+      "prev_chip": "—",
+      "status": "confirmed",
+      "partners": ["Qualcomm"]
+    },
+    "Kuka Robotics": {
+      "model": "차세대 산업용 로봇",
+      "chip_vendor": "Qualcomm",
+      "chip": "Dragonwing IQ10",
+      "prev_chip": "KR C5 컨트롤러",
+      "status": "planned",
+      "partners": ["Qualcomm"]
+    },
+    "Tesla": {
+      "model": "Optimus Gen2/Gen3",
+      "chip_vendor": "In-house",
+      "chip": "Tesla FSD HW4",
+      "prev_chip": "FSD HW3",
+      "status": "confirmed",
+      "partners": []
+    },
+    "XPeng": {
+      "model": "IRON",
+      "chip_vendor": "In-house",
+      "chip": "Turing AI Chip ×3",
+      "prev_chip": "—",
+      "status": "confirmed",
+      "partners": []
+    },
+    "Unitree Robotics (H2)": {
+      "model": "H2",
+      "chip_vendor": "In-house",
+      "chip": "자체 칩 (미공개)",
+      "prev_chip": "Jetson Orin NX",
+      "status": "confirmed",
+      "partners": []
+    }
+  },
+  "change_log": []
+}

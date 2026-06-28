@@ -226,6 +226,7 @@ def _build_blocks(analysis: dict) -> list[dict]:
         keyword_chart_url,
         source_chart_url,
         workload_chart_url,
+        humanoid_chipset_pie_url,
     )
 
     blocks: list[dict] = []
@@ -278,6 +279,12 @@ def _build_blocks(analysis: dict) -> list[dict]:
     if src_url:
         blocks.append(_callout_block("데이터 출처 분포", "📡"))
         blocks.append(_image_block(src_url))
+
+    # ── 휴머노이드 Chipset 채택 현황 파이 차트 ───────────────────
+    chipset_url = humanoid_chipset_pie_url(status_filter=["confirmed"])
+    if chipset_url:
+        blocks.append(_callout_block("휴머노이드 Chipset 채택 현황 (확정 기준)", "🤖"))
+        blocks.append(_image_block(chipset_url))
 
     blocks.append(_divider_block())
 
