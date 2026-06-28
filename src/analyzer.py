@@ -182,6 +182,7 @@ On-device AI와 Cloud AI 구조 변화를 추적하세요.
 - 분석가 관점 핵심 액션 아이템 2-3개 (구체적 기업/기술/시장 제시)
 - 다음 모니터링 포인트 (날짜/이벤트 기준)
 
+{memory_section}
 ---
 [AI 기여 모델]
 {model_attribution}
@@ -369,10 +370,24 @@ def analyze_articles(
         + ("사실 조사: Gemini" if research_meta.get("used_gemini") else "")
     ).rstrip(" |")
 
+    memory_section = ""
+    if memory_context:
+        memory_section = """\
+## 11. 과거 대비 변화 감지 🔍
+위에 제공된 [📚 과거 관련 인사이트]를 바탕으로 분석하세요.
+- **트렌드 연속성**: 과거 보고서와 비교하여 지속되는 흐름 (기업·기술·시장)
+- **변화 감지**: 과거 대비 방향이 바뀐 신호 (포지션·전략·언급 빈도 변화)
+- **이상 감지**: 예상과 다른 움직임 또는 급격한 변화 ⚠️ 표시
+- **신규 등장**: 최근 처음 부각된 기업·기술·이슈
+과거 인사이트가 충분하지 않은 항목은 생략하세요.
+
+"""
+
     formatted_template = ANALYSIS_TEMPLATE.format(
         count=len(synthesis_articles),
         articles_text=articles_text,
         model_attribution=attribution_placeholder,
+        memory_section=memory_section,
     )
     user_content = (
         memory_context + "\n" + formatted_template
