@@ -212,8 +212,13 @@ def call_llm(
                 pass
 
     last_error: Optional[Exception] = None
+    test_mode  = os.environ.get("TEST_MODE", "").lower() in ("1", "true", "yes")
+    skip_paid  = {"Claude", "GPT", "DeepSeek"}  # 테스트 시 유료 LLM 제외
 
     for name, key_var, fn in PROVIDERS:
+        if test_mode and name in skip_paid:
+            _notify(f"⬜ {name}: TEST_MODE — 건너뜀")
+            continue
         if not _has_key(key_var):
             _notify(f"⬜ {name}: API 키 없음, 건너뜀")
             continue
